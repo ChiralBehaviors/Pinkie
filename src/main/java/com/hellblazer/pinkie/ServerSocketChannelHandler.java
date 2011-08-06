@@ -57,35 +57,68 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
                                       SelectableChannel channel,
                                       InetSocketAddress endpointAddress,
                                       SocketOptions socketOptions,
-                                      ExecutorService commsExec,
-                                      ExecutorService dispatchExec)
-                                                                   throws IOException {
-        super(handlerName, channel, endpointAddress, socketOptions, commsExec,
-              dispatchExec);
+                                      ExecutorService commsExec)
+                                                                throws IOException {
+        super(handlerName, channel, endpointAddress, socketOptions, commsExec);
     }
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      ExecutorService commsExec,
-                                      ExecutorService dispatchExec)
-                                                                   throws IOException {
+                                      ExecutorService commsExec)
+                                                                throws IOException {
         this(handlerName, channel, getLocalAddress(channel), socketOptions,
-             commsExec, dispatchExec);
+             commsExec);
     }
 
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
-                                      ExecutorService commsExec,
-                                      ExecutorService dispatchExec)
-                                                                   throws IOException {
+                                      ExecutorService commsExec)
+                                                                throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
-             commsExec, dispatchExec);
+             commsExec);
+    }
+
+    /**
+     * Connect to the remote address. The connection will be made in a
+     * non-blocking fashion, and only after the
+     * ChannelHandler.handleConnect(SocketChannel) method has been called is the
+     * socket channel actually connected.
+     * 
+     * @param remoteAddress
+     * @return the socket channel handler for the new connection
+     * @throws IOException
+     */
+    public SocketChannelHandler connectTo(InetSocketAddress remoteAddress)
+                                                                          throws IOException {
+        SocketChannel socketChannel = SocketChannel.open();
+        options.configure(socketChannel.socket());
+        SocketChannelHandler handler = createHandler(socketChannel);
+        socketChannel.configureBlocking(false);
+        if (socketChannel.connect(remoteAddress)) {
+            // Immediate connection handling
+            handler.connectHandler().run();
+            return handler;
+        }
+        // Non blocking connection handling
+        try {
+            register(handler.getChannel(), handler, SelectionKey.OP_CONNECT);
+        } catch (CancelledKeyException e) {
+            if (log.isLoggable(Level.WARNING)) {
+                log.log(Level.WARNING,
+                        String.format("Cancelled key for %s", handler), e);
+            }
+            throw new IllegalStateException(
+                                            "Could not register the connect selection key",
+                                            e);
+        }
+        wakeup();
+        return handler;
     }
 
     @Override
-    protected void dispatch(SelectionKey key) throws IOException {
+    void dispatch(SelectionKey key) throws IOException {
         if (key.isAcceptable()) {
             handleAccept(key);
         } else if (key.isReadable()) {
@@ -101,7 +134,7 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
         }
     }
 
-    protected void handleConnect(SelectionKey key) {
+    void handleConnect(SelectionKey key) {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
@@ -115,26 +148,11 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
             log.fine("Dispatching connected action");
         }
         try {
-            dispatch((Runnable) key.attachment());
+            commsExecutor.execute(((SocketChannelHandler) key.attachment()).connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "cannot execute connect action", e);
             }
         }
-    }
-
-    protected void selectForConnect(SocketChannelHandler handler,
-                                    Runnable connectAction) {
-        try {
-            register(handler.getChannel(), connectAction,
-                     SelectionKey.OP_CONNECT);
-        } catch (CancelledKeyException e) {
-            if (log.isLoggable(Level.WARNING)) {
-                log.log(Level.WARNING,
-                        String.format("Cancelled key for %s", handler), e);
-            }
-            throw new IllegalStateException(e);
-        }
-        wakeup();
     }
 }
