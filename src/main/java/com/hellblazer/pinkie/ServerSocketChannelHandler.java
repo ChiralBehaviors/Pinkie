@@ -24,7 +24,7 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -57,7 +57,7 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
                                       SelectableChannel channel,
                                       InetSocketAddress endpointAddress,
                                       SocketOptions socketOptions,
-                                      ExecutorService commsExec)
+                                      Executor commsExec)
                                                                 throws IOException {
         super(handlerName, channel, endpointAddress, socketOptions, commsExec);
     }
@@ -65,7 +65,7 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      ExecutorService commsExec)
+                                      Executor commsExec)
                                                                 throws IOException {
         this(handlerName, channel, getLocalAddress(channel), socketOptions,
              commsExec);
@@ -74,7 +74,7 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
-                                      ExecutorService commsExec)
+                                      Executor commsExec)
                                                                 throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
              commsExec);

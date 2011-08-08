@@ -2,25 +2,29 @@ package com.hellblazer.pinkie;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.ExecutorService;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 public class SimpleServerSocketChannelHandler extends
         ServerSocketChannelHandler {
+    List<SimpleSocketChannelHandler> handlers = new ArrayList<SimpleSocketChannelHandler>();
 
     public SimpleServerSocketChannelHandler(String handlerName,
-                                            SelectableChannel channel,
-                                            InetSocketAddress endpointAddress,
                                             SocketOptions socketOptions,
-                                            ExecutorService commsExec)
-                                                                      throws IOException {
-        super(handlerName, channel, endpointAddress, socketOptions, commsExec);
+                                            InetSocketAddress endpointAddress,
+                                            Executor commsExec)
+                                                               throws IOException {
+        super(handlerName, socketOptions, endpointAddress, commsExec);
     }
 
     @Override
     protected SocketChannelHandler createHandler(SocketChannel channel) {
-        return new SimpleSocketChannelHandler(this, channel);
+        SimpleSocketChannelHandler handler = new SimpleSocketChannelHandler(
+                                                                            this,
+                                                                            channel);
+        handlers.add(handler);
+        return handler;
     }
-
 }

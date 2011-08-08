@@ -31,6 +31,7 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -53,7 +54,7 @@ import java.util.logging.Logger;
 public abstract class ChannelHandler {
     private final static Logger                       log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    final ExecutorService                             commsExecutor;
+    final Executor                                    commsExecutor;
     final SocketOptions                               options;
     private final ReentrantLock                       handlersLock  = new ReentrantLock();
     private final InetSocketAddress                   localAddress;
@@ -86,8 +87,8 @@ public abstract class ChannelHandler {
      */
     public ChannelHandler(String handlerName, SelectableChannel channel,
                           InetSocketAddress endpointAddress,
-                          SocketOptions socketOptions, ExecutorService commsExec)
-                                                                                 throws IOException {
+                          SocketOptions socketOptions, Executor commsExec)
+                                                                          throws IOException {
         name = handlerName;
         server = channel;
         localAddress = endpointAddress;
@@ -267,7 +268,7 @@ public abstract class ChannelHandler {
         SocketChannelHandler handler = createHandler(accepted);
         addHandler(handler);
         try {
-            commsExecutor.execute(((SocketChannelHandler) key.attachment()).acceptHandler());
+            commsExecutor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute accept handling");
@@ -399,7 +400,6 @@ public abstract class ChannelHandler {
         }
         selectTask.cancel(true);
         selectService.shutdownNow();
-        commsExecutor.shutdownNow();
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
