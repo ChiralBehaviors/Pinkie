@@ -201,14 +201,12 @@ public abstract class ChannelHandler {
     void dispatch(SelectionKey key) throws IOException {
         if (key.isAcceptable()) {
             handleAccept(key);
-        } else if (key.isReadable()) {
+        }
+        if (key.isReadable()) {
             handleRead(key);
-        } else if (key.isWritable()) {
+        }
+        if (key.isWritable()) {
             handleWrite(key);
-        } else {
-            if (log.isLoggable(Level.WARNING)) {
-                log.warning("Unhandled key: " + key);
-            }
         }
     }
 

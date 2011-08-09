@@ -1,17 +1,19 @@
 package com.hellblazer.pinkie;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class SimpleSocketChannelHandler extends SocketChannelHandler {
 
-    final List<byte[]> reads     = new ArrayList<byte[]>();
-    final List<byte[]> writes    = new ArrayList<byte[]>();
-    boolean            accepted  = false;
-    boolean            connected = false;
+    final List<byte[]>     reads     = new ArrayList<byte[]>();
+    final List<ByteBuffer> writes    = new CopyOnWriteArrayList<ByteBuffer>();
+    boolean                accepted  = false;
+    boolean                connected = false;
 
     public SimpleSocketChannelHandler(ChannelHandler handler,
                                       SocketChannel channel) {
@@ -21,7 +23,6 @@ public class SimpleSocketChannelHandler extends SocketChannelHandler {
     @Override
     public void handleAccept(SocketChannel channel) {
         accepted = true;
-        selectForRead();
     }
 
     @Override
@@ -50,8 +51,26 @@ public class SimpleSocketChannelHandler extends SocketChannelHandler {
 
     @Override
     public void handleWrite(SocketChannel channel) {
-        // TODO Auto-generated method stub
-
+        if (writes.size() == 0) {
+            return;
+        }
+        try {
+            ByteBuffer buffer = writes.get(0);
+            channel.write(buffer);
+            if (!buffer.hasRemaining()) {
+                writes.remove(0);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        selectForWrite();
     }
 
+    public void selectForWrite() {
+        super.selectForWrite();
+    }
+
+    public void selectForRead() {
+        super.selectForRead();
+    }
 }
