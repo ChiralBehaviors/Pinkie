@@ -70,6 +70,26 @@ public class TestServerSocketChannelHandler extends TestCase {
         for (int i = 0; i < src.length; i++) {
             assertEquals(src[i], scHandler.reads.get(0)[i]);
         }
+
+        src = new byte[512];
+        Arrays.fill(src, (byte) 12);
+        buf.flip();
+        buf.put(src);
+        buf.flip();
+        written = 0;
+        for (int out = outbound.write(buf); written + out == src.length; written += out)
+            ;
+        waitFor("No read was recorded", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.reads.size() >= 2;
+            }
+        }, 2000, 100);
+        assertEquals(2, scHandler.reads.size());
+        assertEquals(src.length, scHandler.reads.get(1).length);
+        for (int i = 0; i < src.length; i++) {
+            assertEquals(src[i], scHandler.reads.get(1)[i]);
+        }
     }
 
     void waitFor(String reason, Condition condition, long timeout, long interval)
