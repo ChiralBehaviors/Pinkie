@@ -28,14 +28,11 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,22 +49,20 @@ import java.util.logging.Logger;
  * 
  */
 public abstract class ChannelHandler {
-    private final static Logger                       log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+    private final static Logger           log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    final Executor                                    commsExecutor;
-    final SocketOptions                               options;
-    private final ReentrantLock                       handlersLock  = new ReentrantLock();
-    private final InetSocketAddress                   localAddress;
-    private final String                              name;
-    private volatile SocketChannelHandler             openHandlers;
-    private final BlockingDeque<SocketChannelHandler> readQueue;
-    private final AtomicBoolean                       run           = new AtomicBoolean();
-    private final Selector                            selector;
-    private final ExecutorService                     selectService;
-    private Future<?>                                 selectTask;
-    private final int                                 selectTimeout = 1000;
-    private final SelectableChannel                   server;
-    private final BlockingDeque<SocketChannelHandler> writeQueue;
+    final Executor                        commsExecutor;
+    final SocketOptions                   options;
+    private final ReentrantLock           handlersLock  = new ReentrantLock();
+    private final InetSocketAddress       localAddress;
+    private final String                  name;
+    private volatile SocketChannelHandler openHandlers;
+    private final AtomicBoolean           run           = new AtomicBoolean();
+    private final Selector                selector;
+    private final ExecutorService         selectService;
+    private Future<?>                     selectTask;
+    private final int                     selectTimeout = 1000;
+    private final SelectableChannel       server;
 
     /**
      * Construct a new channel handler
@@ -94,8 +89,6 @@ public abstract class ChannelHandler {
         localAddress = endpointAddress;
         commsExecutor = commsExec;
         options = socketOptions;
-        readQueue = new LinkedBlockingDeque<SocketChannelHandler>();
-        writeQueue = new LinkedBlockingDeque<SocketChannelHandler>();
         selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -170,12 +163,12 @@ public abstract class ChannelHandler {
 
     /**
      * Create an instance of a socket channel handler, using the supplied
-     * socket.
+     * channel and key.
      * 
-     * @param socket
+     * @param channel
      * @return
      */
-    abstract protected SocketChannelHandler createHandler(SocketChannel socket);
+    abstract protected SocketChannelHandler createHandler(SocketChannel channel);
 
     void addHandler(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;
@@ -188,41 +181,6 @@ public abstract class ChannelHandler {
             }
         } finally {
             myLock.unlock();
-        }
-    }
-
-    /**
-     * @throws ClosedChannelException
-     * @throws IOException
-     */
-    void addQueuedSelects() throws ClosedChannelException, IOException {
-        if (log.isLoggable(Level.FINEST)) {
-            log.finest("Adding queued read selects");
-        }
-        ArrayList<SocketChannelHandler> selectors = new ArrayList<SocketChannelHandler>(
-                                                                                        readQueue.size());
-        readQueue.drainTo(selectors);
-        for (SocketChannelHandler handler : selectors) {
-            try {
-                register(handler.getChannel(), handler, SelectionKey.OP_READ);
-            } catch (CancelledKeyException e) {
-                // ignore and enqueue
-                selectForRead(handler);
-            }
-        }
-
-        if (log.isLoggable(Level.FINEST)) {
-            log.finest("Adding queued write selects");
-        }
-        selectors = new ArrayList<SocketChannelHandler>(writeQueue.size());
-        writeQueue.drainTo(selectors);
-        for (SocketChannelHandler handler : selectors) {
-            try {
-                register(handler.getChannel(), handler, SelectionKey.OP_WRITE);
-            } catch (CancelledKeyException e) {
-                // ignore and enqueue
-                selectForWrite(handler);
-            }
         }
     }
 
@@ -266,7 +224,9 @@ public abstract class ChannelHandler {
             log.fine(String.format("Connection accepted: %s", accepted));
         }
         SocketChannelHandler handler = createHandler(accepted);
+        SelectionKey newKey = register(accepted, handler, 0);
         addHandler(handler);
+        newKey.attach(handler);
         try {
             commsExecutor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
@@ -280,7 +240,7 @@ public abstract class ChannelHandler {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
-        key.cancel();
+        key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
         try {
             commsExecutor.execute(((SocketChannelHandler) key.attachment()).readHandler);
         } catch (RejectedExecutionException e) {
@@ -294,7 +254,7 @@ public abstract class ChannelHandler {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling write");
         }
-        key.cancel();
+        key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
         try {
             commsExecutor.execute(((SocketChannelHandler) key.attachment()).writeHandler);
         } catch (RejectedExecutionException e) {
@@ -304,9 +264,10 @@ public abstract class ChannelHandler {
         }
     }
 
-    void register(SocketChannel channel, Object context, int operation) {
+    SelectionKey register(SocketChannel channel, Object handler, int operation) {
+        SelectionKey key = null;
         try {
-            channel.register(selector, operation, context);
+            key = channel.register(selector, operation, handler);
         } catch (NullPointerException e) {
             // apparently the file descriptor can be nulled
             log.log(Level.FINEST, "anamalous null pointer exception", e);
@@ -314,8 +275,8 @@ public abstract class ChannelHandler {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "channel has been closed", e);
             }
-            return;
         }
+        return key;
     }
 
     void select() throws IOException {
@@ -323,7 +284,6 @@ public abstract class ChannelHandler {
             log.finest("Selecting");
         }
         selector.select(selectTimeout);
-        addQueuedSelects();
 
         // get an iterator over the set of selected keys
         Iterator<SelectionKey> selected;
@@ -347,12 +307,14 @@ public abstract class ChannelHandler {
     }
 
     void selectForRead(SocketChannelHandler handler) {
-        readQueue.add(handler);
+        SelectionKey key = handler.getChannel().keyFor(selector);
+        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         wakeup();
     }
 
     void selectForWrite(SocketChannelHandler handler) {
-        writeQueue.add(handler);
+        SelectionKey key = handler.getChannel().keyFor(selector);
+        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
         wakeup();
     }
 

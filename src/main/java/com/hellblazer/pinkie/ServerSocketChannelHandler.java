@@ -19,7 +19,6 @@ package com.hellblazer.pinkie;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -57,16 +56,14 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
                                       SelectableChannel channel,
                                       InetSocketAddress endpointAddress,
                                       SocketOptions socketOptions,
-                                      Executor commsExec)
-                                                                throws IOException {
+                                      Executor commsExec) throws IOException {
         super(handlerName, channel, endpointAddress, socketOptions, commsExec);
     }
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      Executor commsExec)
-                                                                throws IOException {
+                                      Executor commsExec) throws IOException {
         this(handlerName, channel, getLocalAddress(channel), socketOptions,
              commsExec);
     }
@@ -74,8 +71,7 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
-                                      Executor commsExec)
-                                                                throws IOException {
+                                      Executor commsExec) throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
              commsExec);
     }
@@ -95,24 +91,14 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
         SocketChannel socketChannel = SocketChannel.open();
         options.configure(socketChannel.socket());
         SocketChannelHandler handler = createHandler(socketChannel);
+        SelectionKey key = register(socketChannel, handler, 0);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
             // Immediate connection handling
             handler.connectHandler().run();
             return handler;
         }
-        // Non blocking connection handling
-        try {
-            register(handler.getChannel(), handler, SelectionKey.OP_CONNECT);
-        } catch (CancelledKeyException e) {
-            if (log.isLoggable(Level.WARNING)) {
-                log.log(Level.WARNING,
-                        String.format("Cancelled key for %s", handler), e);
-            }
-            throw new IllegalStateException(
-                                            "Could not register the connect selection key",
-                                            e);
-        }
+        key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
         wakeup();
         return handler;
     }
