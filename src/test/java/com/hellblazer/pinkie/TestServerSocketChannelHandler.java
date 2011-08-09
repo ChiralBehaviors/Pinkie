@@ -1,5 +1,6 @@
 package com.hellblazer.pinkie;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -96,15 +97,20 @@ public class TestServerSocketChannelHandler extends TestCase {
     }
 
     public void testWrite() throws Exception {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.setSend_buffer_size(128);
+        socketOptions.setReceive_buffer_size(128);
+        socketOptions.setTimeout(100);
         final SimpleServerSocketChannelHandler handler = new SimpleServerSocketChannelHandler(
                                                                                               "Test Handler",
-                                                                                              new SocketOptions(),
+                                                                                              socketOptions,
                                                                                               new InetSocketAddress(
                                                                                                                     0),
                                                                                               Executors.newSingleThreadExecutor());
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         final SocketChannel outbound = SocketChannel.open();
+        socketOptions.configure(outbound.socket());
         outbound.configureBlocking(true);
         outbound.connect(endpont);
         outbound.finishConnect();
@@ -114,19 +120,20 @@ public class TestServerSocketChannelHandler extends TestCase {
                 return handler.handlers.size() >= 1;
             }
         }, 2000, 100);
+        outbound.configureBlocking(true);
         final SimpleSocketChannelHandler scHandler = handler.handlers.get(0);
         scHandler.selectForWrite();
-        byte[][] src = new byte[2][];
+        final byte[][] src = new byte[2][];
 
-        ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
-        src[0] = new byte[512];
+        ByteBuffer buf = ByteBuffer.wrap(new byte[8192]);
+        src[0] = new byte[8192];
         Arrays.fill(src[0], (byte) 6);
         buf.put(src[0]);
         buf.flip();
         scHandler.writes.add(buf);
 
-        buf = ByteBuffer.wrap(new byte[512]);
-        src[1] = new byte[512];
+        buf = ByteBuffer.wrap(new byte[8192]);
+        src[1] = new byte[8192];
         Arrays.fill(src[1], (byte) 12);
         buf.put(src[1]);
         buf.flip();
@@ -134,44 +141,52 @@ public class TestServerSocketChannelHandler extends TestCase {
 
         scHandler.selectForWrite();
 
-        buf = ByteBuffer.wrap(new byte[512]);
-        final ByteBuffer finalBuf = buf;
+        final ByteArrayOutputStream testBuf = new ByteArrayOutputStream();
+        final ByteBuffer readBuf = ByteBuffer.wrap(new byte[512]);
+        readBuf.clear();
         waitFor("Write was not completed", new Condition() {
             @Override
             public boolean value() {
                 try {
-                    for (int read = outbound.read(finalBuf); read != 0; read = outbound.read(finalBuf))
-                        ;
+                    int read = outbound.read(readBuf);
+                    byte[] anotherBuf = new byte[read];
+                    readBuf.flip();
+                    readBuf.get(anotherBuf);
+                    testBuf.write(anotherBuf);
+                    readBuf.clear();
                 } catch (IOException e) {
                     fail("Exception during read: " + e.toString());
                 }
-                return scHandler.writes.size() <= 1;
+                return src[0].length == testBuf.size();
             }
-        }, 2000, 100);
-        buf.flip();
-        assertEquals(src[0].length, buf.limit());
+        }, 4000, 100);
+        byte[] testArray = testBuf.toByteArray();
         for (int i = 0; i < src[0].length; i++) {
-            assertEquals(src[0][i], buf.get(i));
+            assertEquals(src[0][i], testArray[i]);
         }
 
-        buf = ByteBuffer.wrap(new byte[512]);
-        final ByteBuffer finalBuffy = buf;
+        scHandler.selectForWrite();
+        testBuf.reset();
+        readBuf.clear();
         waitFor("Write was not completed", new Condition() {
             @Override
             public boolean value() {
                 try {
-                    for (int read = outbound.read(finalBuffy); read != 0; read = outbound.read(finalBuffy))
-                        ;
+                    int read = outbound.read(readBuf);
+                    byte[] anotherBuf = new byte[read];
+                    readBuf.flip();
+                    readBuf.get(anotherBuf);
+                    testBuf.write(anotherBuf);
+                    readBuf.clear();
                 } catch (IOException e) {
                     fail("Exception during read: " + e.toString());
                 }
-                return scHandler.writes.size() == 0;
+                return src[0].length == testBuf.size();
             }
-        }, 2000, 100);
-        buf.flip();
-        assertEquals(src[1].length, buf.limit());
+        }, 4000, 100);
+        testArray = testBuf.toByteArray();
         for (int i = 0; i < src[1].length; i++) {
-            assertEquals(src[1][i], buf.get(i));
+            assertEquals(src[1][i], testArray[i]);
         }
     }
 

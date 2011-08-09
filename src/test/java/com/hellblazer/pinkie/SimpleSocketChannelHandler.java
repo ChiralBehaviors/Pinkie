@@ -59,11 +59,12 @@ public class SimpleSocketChannelHandler extends SocketChannelHandler {
             channel.write(buffer);
             if (!buffer.hasRemaining()) {
                 writes.remove(0);
+            } else {
+                selectForWrite();
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-        selectForWrite();
     }
 
     public void selectForWrite() {
