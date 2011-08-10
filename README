@@ -2,10 +2,7 @@ Pinkie - a minimal NIO socket channel handler
 
 Pinkie is licenced under Version 2.1 of the LGPL
 
-This small library provides a minimal, but full featured NIO socket channel handler.  Pinkie provides a generic selectable ChannelHandler for both inbound and outbound sockets.  The library provides an abstract superclass for the concrete handling of the actual SocketChannels, as well as an abstract superclass for the ServerSocketChannel handler.  Rather than using a factory class, this package requires the implementor to connect the SocketChannelHandler subclass with the ServerSocketChannelHandlerClass via the imlementation of the abstract method 
-	ChannelHandler.createHandler(SocketChannel)
-
-I'm sure there's a better way to do this that is sanctioned by the gods that enforce such things, but this works.
+This small library provides a minimal, but full featured NIO socket channel handler.  Pinkie provides a generic selectable ChannelHandler for both inbound and outbound sockets.  The library provides the concrete handling of SocketChannels, as well as a ServerSocketChannel handler.  Pinkie uses a factory to create instances of the event handlers for SocketChannel events.
 
 Pinkie requires Maven 2.x to build.  To build Pinkie, cd into the root directory and do:
 

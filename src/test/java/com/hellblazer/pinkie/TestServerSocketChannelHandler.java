@@ -1,3 +1,19 @@
+/** (C) Copyright 2011 Hal Hildebrand, all rights reserved.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
 package com.hellblazer.pinkie;
 
 import java.io.ByteArrayOutputStream;
@@ -10,15 +26,22 @@ import java.util.concurrent.Executors;
 
 import junit.framework.TestCase;
 
+/**
+ * 
+ * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
+ * 
+ */
 public class TestServerSocketChannelHandler extends TestCase {
 
     public void testAccept() throws Exception {
-        final SimpleServerSocketChannelHandler handler = new SimpleServerSocketChannelHandler(
-                                                                                              "Test Handler",
-                                                                                              new SocketOptions(),
-                                                                                              new InetSocketAddress(
-                                                                                                                    0),
-                                                                                              Executors.newSingleThreadExecutor());
+        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -28,19 +51,21 @@ public class TestServerSocketChannelHandler extends TestCase {
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
-                return handler.handlers.size() >= 1;
+                return factory.handlers.size() >= 1;
             }
         }, 2000, 100);
-        assertEquals(1, handler.handlers.size());
+        assertEquals(1, factory.handlers.size());
     }
 
     public void testRead() throws Exception {
-        final SimpleServerSocketChannelHandler handler = new SimpleServerSocketChannelHandler(
-                                                                                              "Test Handler",
-                                                                                              new SocketOptions(),
-                                                                                              new InetSocketAddress(
-                                                                                                                    0),
-                                                                                              Executors.newSingleThreadExecutor());
+        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -50,10 +75,10 @@ public class TestServerSocketChannelHandler extends TestCase {
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
-                return handler.handlers.size() >= 1;
+                return factory.handlers.size() >= 1;
             }
         }, 2000, 100);
-        final SimpleSocketChannelHandler scHandler = handler.handlers.get(0);
+        final SimpleCommHandler scHandler = factory.handlers.get(0);
         scHandler.selectForRead();
         ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
         byte[] src = new byte[512];
@@ -101,12 +126,14 @@ public class TestServerSocketChannelHandler extends TestCase {
         socketOptions.setSend_buffer_size(128);
         socketOptions.setReceive_buffer_size(128);
         socketOptions.setTimeout(100);
-        final SimpleServerSocketChannelHandler handler = new SimpleServerSocketChannelHandler(
-                                                                                              "Test Handler",
-                                                                                              socketOptions,
-                                                                                              new InetSocketAddress(
-                                                                                                                    0),
-                                                                                              Executors.newSingleThreadExecutor());
+        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         final SocketChannel outbound = SocketChannel.open();
@@ -117,11 +144,11 @@ public class TestServerSocketChannelHandler extends TestCase {
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
-                return handler.handlers.size() >= 1;
+                return factory.handlers.size() >= 1;
             }
         }, 2000, 100);
         outbound.configureBlocking(true);
-        final SimpleSocketChannelHandler scHandler = handler.handlers.get(0);
+        final SimpleCommHandler scHandler = factory.handlers.get(0);
         scHandler.selectForWrite();
         final byte[][] src = new byte[2][];
 

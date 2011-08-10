@@ -33,7 +33,7 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public abstract class ServerSocketChannelHandler extends ChannelHandler {
+public class ServerSocketChannelHandler extends ChannelHandler {
 
     private static Logger log = Logger.getLogger(ServerSocketChannelHandler.class.getCanonicalName());
 
@@ -56,24 +56,31 @@ public abstract class ServerSocketChannelHandler extends ChannelHandler {
                                       SelectableChannel channel,
                                       InetSocketAddress endpointAddress,
                                       SocketOptions socketOptions,
-                                      Executor commsExec) throws IOException {
-        super(handlerName, channel, endpointAddress, socketOptions, commsExec);
+                                      Executor commsExec,
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
+        super(handlerName, channel, endpointAddress, socketOptions, commsExec,
+              factory);
     }
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      Executor commsExec) throws IOException {
+                                      Executor commsExec,
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
         this(handlerName, channel, getLocalAddress(channel), socketOptions,
-             commsExec);
+             commsExec, factory);
     }
 
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
-                                      Executor commsExec) throws IOException {
+                                      Executor commsExec,
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
-             commsExec);
+             commsExec, factory);
     }
 
     /**

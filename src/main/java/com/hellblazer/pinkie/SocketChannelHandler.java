@@ -25,49 +25,26 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * The handler for socket channels. This class provides the protocol necessary
- * to interact with the server socket channel handler to provide non blocking
- * read, writes and accepts.
- * 
- * Implementors of handlers will be called back on one of the four methods:
- * 
- * <pre>
- *      handleConnect(SocketChannel)
- *      handleRead(SocketChannel)
- *      handleWrite(SocketChannel)
- *      handleAccept(SocketChannel)
- * </pre>
- * 
- * when the socket becomes connected, read ready, write ready or is accepted.
- * Note that connected is valid only for outbound connections, and accepted is
- * valid only for inbound connections.
- * 
- * After servicing the socket handler, the implementor must call either the
- * methods:
- * 
- * <pre>
- *      selectForRead()
- *      selectForWrite()
- * </pre>
- * 
- * to place the socket back in the select queue.
+ * The handler for socket channels. This class provides the bridge to interact
+ * with event handler for the server socket channel handler to provide non
+ * blocking read, writes and accepts.
  * 
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-abstract public class SocketChannelHandler {
+final public class SocketChannelHandler {
 
     private class ReadHandler implements Runnable {
         @Override
         public void run() {
-            handleRead(channel);
+            eventHandler.handleRead(channel, SocketChannelHandler.this);
         }
     }
 
     private class WriteHandler implements Runnable {
         @Override
         public void run() {
-            handleWrite(channel);
+            eventHandler.handleWrite(channel, SocketChannelHandler.this);
         }
     }
 
@@ -80,8 +57,11 @@ abstract public class SocketChannelHandler {
     private volatile SocketChannelHandler next;
     private volatile boolean              open         = true;
     private volatile SocketChannelHandler previous;
+    private final CommunicationsHandler   eventHandler;
 
-    public SocketChannelHandler(ChannelHandler handler, SocketChannel channel) {
+    public SocketChannelHandler(CommunicationsHandler eventHandler,
+                                ChannelHandler handler, SocketChannel channel) {
+        this.eventHandler = eventHandler;
         this.handler = handler;
         this.channel = channel;
     }
@@ -99,40 +79,26 @@ abstract public class SocketChannelHandler {
     }
 
     /**
-     * Handle the accept of the socket
-     * 
-     * @param channel
-     */
-    abstract public void handleAccept(SocketChannel channel);
-
-    /**
-     * Handle the connection of the outbound socket
-     * 
-     * @param channel
-     */
-    abstract public void handleConnect(SocketChannel channel);
-
-    /**
-     * Handle the read ready socket
-     * 
-     * @param channel
-     */
-    abstract public void handleRead(SocketChannel channel);
-
-    /**
-     * Handle the write ready socket
-     * 
-     * @param channel
-     */
-    abstract public void handleWrite(SocketChannel channel);
-
-    /**
      * Answer true if the receiver is open
      * 
      * @return
      */
     public boolean open() {
         return open;
+    }
+
+    /**
+     * Return the handler and select for read ready
+     */
+    public void selectForRead() {
+        handler.selectForRead(this);
+    }
+
+    /**
+     * Return the handler and select for read ready
+     */
+    public void selectForWrite() {
+        handler.selectForWrite(this);
     }
 
     @Override
@@ -143,36 +109,11 @@ abstract public class SocketChannelHandler {
                       socket.getRemoteSocketAddress());
     }
 
-    /**
-     * The handler is closing, perform any clean up necessary
-     */
-    protected void closing() {
-        // default is to do nothing
-    }
-
-    protected SocketChannel getChannel() {
-        return channel;
-    }
-
-    /**
-     * Return the handler and select for read ready
-     */
-    protected void selectForRead() {
-        handler.selectForRead(this);
-    }
-
-    /**
-     * Return the handler and select for read ready
-     */
-    protected void selectForWrite() {
-        handler.selectForWrite(this);
-    }
-
     final Runnable acceptHandler() {
         return new Runnable() {
             @Override
             public void run() {
-                handleAccept(channel);
+                eventHandler.handleAccept(channel, SocketChannelHandler.this);
             }
         };
     }
@@ -181,7 +122,7 @@ abstract public class SocketChannelHandler {
         return new Runnable() {
             @Override
             public void run() {
-                handleConnect(channel);
+                eventHandler.handleConnect(channel, SocketChannelHandler.this);
             }
         };
     }
@@ -199,8 +140,12 @@ abstract public class SocketChannelHandler {
         next = previous = null;
     }
 
+    SocketChannel getChannel() {
+        return channel;
+    }
+
     final void internalClose() {
-        closing();
+        eventHandler.closing(channel);
         open = false;
         try {
             channel.close();

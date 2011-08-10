@@ -48,21 +48,22 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public abstract class ChannelHandler {
-    private final static Logger           log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+public class ChannelHandler {
+    private final static Logger                log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    final Executor                        commsExecutor;
-    final SocketOptions                   options;
-    private final ReentrantLock           handlersLock  = new ReentrantLock();
-    private final InetSocketAddress       localAddress;
-    private final String                  name;
-    private volatile SocketChannelHandler openHandlers;
-    private final AtomicBoolean           run           = new AtomicBoolean();
-    private final Selector                selector;
-    private final ExecutorService         selectService;
-    private Future<?>                     selectTask;
-    private final int                     selectTimeout = 1000;
-    private final SelectableChannel       server;
+    final Executor                             commsExecutor;
+    final SocketOptions                        options;
+    private final ReentrantLock                handlersLock  = new ReentrantLock();
+    private final InetSocketAddress            localAddress;
+    private final String                       name;
+    private volatile SocketChannelHandler      openHandlers;
+    private final AtomicBoolean                run           = new AtomicBoolean();
+    private final Selector                     selector;
+    private final ExecutorService              selectService;
+    private Future<?>                          selectTask;
+    private final int                          selectTimeout = 1000;
+    private final SelectableChannel            server;
+    private final CommunicationsHandlerFactory eventHandlerFactory;
 
     /**
      * Construct a new channel handler
@@ -82,13 +83,11 @@ public abstract class ChannelHandler {
      */
     public ChannelHandler(String handlerName, SelectableChannel channel,
                           InetSocketAddress endpointAddress,
-                          SocketOptions socketOptions, Executor commsExec)
-                                                                          throws IOException {
+                          SocketOptions socketOptions, Executor commsExec,
+                          CommunicationsHandlerFactory factory)
+                                                               throws IOException {
         name = handlerName;
         server = channel;
-        localAddress = endpointAddress;
-        commsExecutor = commsExec;
-        options = socketOptions;
         selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -110,6 +109,10 @@ public abstract class ChannelHandler {
         selector = Selector.open();
         server.configureBlocking(false);
         server.register(selector, SelectionKey.OP_ACCEPT);
+        eventHandlerFactory = factory;
+        localAddress = endpointAddress;
+        commsExecutor = commsExec;
+        options = socketOptions;
     }
 
     /**
@@ -168,7 +171,9 @@ public abstract class ChannelHandler {
      * @param channel
      * @return
      */
-    abstract protected SocketChannelHandler createHandler(SocketChannel channel);
+    SocketChannelHandler createHandler(SocketChannel channel) {
+        return new SocketChannelHandler(eventHandlerFactory.createCommunicationsHandler(), this, channel);
+    }
 
     void addHandler(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;

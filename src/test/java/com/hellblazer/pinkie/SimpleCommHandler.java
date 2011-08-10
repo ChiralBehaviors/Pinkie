@@ -1,3 +1,19 @@
+/** (C) Copyright 2011 Hal Hildebrand, all rights reserved.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
 package com.hellblazer.pinkie;
 
 import java.io.ByteArrayOutputStream;
@@ -8,30 +24,33 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class SimpleSocketChannelHandler extends SocketChannelHandler {
+/**
+ * 
+ * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
+ * 
+ */
+public class SimpleCommHandler implements CommunicationsHandler {
 
     final List<byte[]>     reads     = new ArrayList<byte[]>();
     final List<ByteBuffer> writes    = new CopyOnWriteArrayList<ByteBuffer>();
     boolean                accepted  = false;
     boolean                connected = false;
-
-    public SimpleSocketChannelHandler(ChannelHandler handler,
-                                      SocketChannel channel) {
-        super(handler, channel);
-    }
+    SocketChannelHandler   handler;
 
     @Override
-    public void handleAccept(SocketChannel channel) {
+    public void handleAccept(SocketChannel channel, SocketChannelHandler handler) {
+        this.handler = handler;
         accepted = true;
     }
 
     @Override
-    public void handleConnect(SocketChannel channel) {
+    public void handleConnect(SocketChannel channel,
+                              SocketChannelHandler handler) {
         connected = true;
     }
 
     @Override
-    public void handleRead(SocketChannel channel) {
+    public void handleRead(SocketChannel channel, SocketChannelHandler handler) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ByteBuffer buffer = ByteBuffer.wrap(new byte[1024]);
@@ -46,11 +65,11 @@ public class SimpleSocketChannelHandler extends SocketChannelHandler {
         } catch (Throwable e) {
             throw new IllegalStateException(e);
         }
-        selectForRead();
+        handler.selectForRead();
     }
 
     @Override
-    public void handleWrite(SocketChannel channel) {
+    public void handleWrite(SocketChannel channel, SocketChannelHandler handler) {
         if (writes.size() == 0) {
             return;
         }
@@ -60,18 +79,22 @@ public class SimpleSocketChannelHandler extends SocketChannelHandler {
             if (!buffer.hasRemaining()) {
                 writes.remove(0);
             } else {
-                selectForWrite();
+                handler.selectForWrite();
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
     }
 
-    public void selectForWrite() {
-        super.selectForWrite();
+    public void selectForRead() {
+        handler.selectForRead();
     }
 
-    public void selectForRead() {
-        super.selectForRead();
+    public void selectForWrite() {
+        handler.selectForWrite();
+    }
+
+    @Override
+    public void closing(SocketChannel channel) {
     }
 }
