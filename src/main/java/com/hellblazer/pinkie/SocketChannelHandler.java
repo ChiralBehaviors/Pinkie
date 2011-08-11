@@ -32,7 +32,7 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-final public class SocketChannelHandler {
+public class SocketChannelHandler {
 
     private class ReadHandler implements Runnable {
         @Override
