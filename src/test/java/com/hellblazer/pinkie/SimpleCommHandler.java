@@ -31,11 +31,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class SimpleCommHandler implements CommunicationsHandler {
 
-    final List<byte[]>     reads     = new ArrayList<byte[]>();
-    final List<ByteBuffer> writes    = new CopyOnWriteArrayList<ByteBuffer>();
-    boolean                accepted  = false;
-    boolean                connected = false;
-    SocketChannelHandler   handler;
+    final List<byte[]>            reads     = new ArrayList<byte[]>();
+    final List<ByteBuffer>        writes    = new CopyOnWriteArrayList<ByteBuffer>();
+    volatile boolean              accepted  = false;
+    volatile boolean              connected = false;
+    volatile SocketChannelHandler handler;
 
     @Override
     public void handleAccept(SocketChannel channel, SocketChannelHandler handler) {
