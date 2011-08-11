@@ -54,6 +54,13 @@ public class TestServerSocketChannelHandler extends TestCase {
                 return factory.handlers.size() >= 1;
             }
         }, 2000, 100);
+        final SimpleCommHandler scHandler = factory.handlers.get(0);
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.accepted.get();
+            }
+        }, 2000, 100);
         assertEquals(1, factory.handlers.size());
     }
 
@@ -79,6 +86,12 @@ public class TestServerSocketChannelHandler extends TestCase {
             }
         }, 2000, 100);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.accepted.get();
+            }
+        }, 2000, 100);
         scHandler.selectForRead();
         ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
         byte[] src = new byte[512];
@@ -149,6 +162,12 @@ public class TestServerSocketChannelHandler extends TestCase {
         }, 2000, 100);
         outbound.configureBlocking(true);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.accepted.get();
+            }
+        }, 2000, 100);
         scHandler.selectForWrite();
         final byte[][] src = new byte[2][];
 
