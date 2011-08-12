@@ -25,18 +25,22 @@ import java.nio.channels.SocketChannel;
  * Implementors of handlers will be called back on one of the four methods:
  * 
  * <pre>
- *      handleConnect(SocketChannel)
+ *      handleAccept(SocketChannel, SocketChannelHandler)
+ *      handleConnect(SocketChannel, SocketChannelHandler)
  *      handleRead(SocketChannel)
  *      handleWrite(SocketChannel)
- *      handleAccept(SocketChannel)
  * </pre>
  * 
  * when the socket becomes connected, read ready, write ready or is accepted.
  * Note that connected is valid only for outbound connections, and accepted is
  * valid only for inbound connections.
  * 
- * After servicing the socket handler, the implementor must call either the
- * methods:
+ * The connected and accept methods include the SocketChannelHandler that is
+ * responsible for the CommunicationsHandler. The CommunicationsHandler instance
+ * is expected to store the SocketChannelHandler for future use.
+ * 
+ * After servicing the event, or at any time appropriate, the implementor must
+ * call either of the methods:
  * 
  * <pre>
  *      SocketChannelHandler.selectForRead()
@@ -51,9 +55,15 @@ import java.nio.channels.SocketChannel;
 public interface CommunicationsHandler {
 
     /**
-     * Handle the accept of the socket
+     * The channel is closing, perform any clean up necessary
+     */
+    void closing(SocketChannel channel);
+
+    /**
+     * Handle the accept of the socket. The SocketChannel
      * 
      * @param channel
+     * @param handler
      */
     void handleAccept(SocketChannel channel, SocketChannelHandler handler);
 
@@ -61,6 +71,7 @@ public interface CommunicationsHandler {
      * Handle the connection of the outbound socket
      * 
      * @param channel
+     * @param handler
      */
     void handleConnect(SocketChannel channel, SocketChannelHandler handler);
 
@@ -69,17 +80,12 @@ public interface CommunicationsHandler {
      * 
      * @param channel
      */
-    void handleRead(SocketChannel channel, SocketChannelHandler handler);
+    void handleRead(SocketChannel channel);
 
     /**
      * Handle the write ready socket
      * 
      * @param channel
      */
-    void handleWrite(SocketChannel channel, SocketChannelHandler handler);
-
-    /**
-     * The channel is closing, perform any clean up necessary
-     */
-    void closing(SocketChannel channel);
+    void handleWrite(SocketChannel channel);
 }

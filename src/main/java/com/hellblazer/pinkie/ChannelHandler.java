@@ -164,17 +164,6 @@ public class ChannelHandler {
         }
     }
 
-    /**
-     * Create an instance of a socket channel handler, using the supplied
-     * channel and key.
-     * 
-     * @param channel
-     * @return
-     */
-    SocketChannelHandler createHandler(SocketChannel channel) {
-        return new SocketChannelHandler(eventHandlerFactory.createCommunicationsHandler(), this, channel);
-    }
-
     void addHandler(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
@@ -201,6 +190,19 @@ public class ChannelHandler {
         } finally {
             myLock.unlock();
         }
+    }
+
+    /**
+     * Create an instance of a socket channel handler, using the supplied
+     * channel and key.
+     * 
+     * @param channel
+     * @return
+     */
+    SocketChannelHandler createHandler(SocketChannel channel) {
+        return new SocketChannelHandler(
+                                        eventHandlerFactory.createCommunicationsHandler(),
+                                        this, channel);
     }
 
     void dispatch(SelectionKey key) throws IOException {
@@ -243,7 +245,7 @@ public class ChannelHandler {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_READ));
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
         try {
             commsExecutor.execute(((SocketChannelHandler) key.attachment()).readHandler);
         } catch (RejectedExecutionException e) {
@@ -257,7 +259,7 @@ public class ChannelHandler {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling write");
         }
-        key.interestOps(key.interestOps() & (~SelectionKey.OP_WRITE));
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         try {
             commsExecutor.execute(((SocketChannelHandler) key.attachment()).writeHandler);
         } catch (RejectedExecutionException e) {

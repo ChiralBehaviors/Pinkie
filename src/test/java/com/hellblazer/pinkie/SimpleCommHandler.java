@@ -52,7 +52,7 @@ public class SimpleCommHandler implements CommunicationsHandler {
     }
 
     @Override
-    public void handleRead(SocketChannel channel, SocketChannelHandler handler) {
+    public void handleRead(SocketChannel channel) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ByteBuffer buffer = ByteBuffer.wrap(new byte[1024]);
@@ -67,11 +67,11 @@ public class SimpleCommHandler implements CommunicationsHandler {
         } catch (Throwable e) {
             throw new IllegalStateException(e);
         }
-        handler.selectForRead();
+        handler.get().selectForRead();
     }
 
     @Override
-    public void handleWrite(SocketChannel channel, SocketChannelHandler handler) {
+    public void handleWrite(SocketChannel channel) {
         if (writes.size() == 0) {
             return;
         }
@@ -81,7 +81,7 @@ public class SimpleCommHandler implements CommunicationsHandler {
             if (!buffer.hasRemaining()) {
                 writes.remove(0);
             } else {
-                handler.selectForWrite();
+                handler.get().selectForWrite();
             }
         } catch (IOException e) {
             throw new IllegalStateException(e);

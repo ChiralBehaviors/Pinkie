@@ -90,24 +90,29 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      * socket channel actually connected.
      * 
      * @param remoteAddress
+     * @param eventHandler
      * @return the socket channel handler for the new connection
      * @throws IOException
      */
-    public SocketChannelHandler connectTo(InetSocketAddress remoteAddress)
-                                                                          throws IOException {
+    public void connectTo(InetSocketAddress remoteAddress,
+                          CommunicationsHandler eventHandler)
+                                                             throws IOException {
         SocketChannel socketChannel = SocketChannel.open();
         options.configure(socketChannel.socket());
-        SocketChannelHandler handler = createHandler(socketChannel);
+        SocketChannelHandler handler = new SocketChannelHandler(eventHandler,
+                                                                this,
+                                                                socketChannel);
+        addHandler(handler);
         SelectionKey key = register(socketChannel, handler, 0);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
             // Immediate connection handling
             handler.connectHandler().run();
-            return handler;
+            return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
         wakeup();
-        return handler;
+        return;
     }
 
     @Override
@@ -123,7 +128,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
-        key.cancel();
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
         try {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {

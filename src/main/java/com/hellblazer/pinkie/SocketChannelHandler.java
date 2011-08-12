@@ -37,14 +37,14 @@ public class SocketChannelHandler {
     private class ReadHandler implements Runnable {
         @Override
         public void run() {
-            eventHandler.handleRead(channel, SocketChannelHandler.this);
+            eventHandler.handleRead(channel);
         }
     }
 
     private class WriteHandler implements Runnable {
         @Override
         public void run() {
-            eventHandler.handleWrite(channel, SocketChannelHandler.this);
+            eventHandler.handleWrite(channel);
         }
     }
 
