@@ -7,7 +7,20 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>Pinkie</name>
     <description>A minimal NIO Socket library</description>
-
+    <url>https://github.com/Hellblazer/Pinkie</url>
+    
+    <licenses>
+        <license>
+            <name>GNU Leser General Public License, version 2.1</name>
+            <url>http://www.gnu.org/licenses/lgpl-2.1.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    
+    <scm>
+        <url>https://github.com/Hellblazer/Pinkie.git</url>
+    </scm>
+    
     <build>
         <plugins>
             <plugin>
