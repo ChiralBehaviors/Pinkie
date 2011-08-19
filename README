@@ -1,6 +1,6 @@
 Pinkie - a minimal NIO socket channel handler
 
-Pinkie is licenced under Version 2.1 of the LGPL
+Pinkie is licenced under the Apache License, Version 2.0
 
 This small library provides a minimal, but full featured NIO socket channel handler.  Pinkie provides a generic selectable ChannelHandler for both inbound and outbound sockets.  The library provides the concrete handling of SocketChannels, as well as a ServerSocketChannel handler.  Pinkie uses a factory to create instances of the event handlers for SocketChannel events.
 
