@@ -200,7 +200,7 @@ public class ChannelHandler {
      */
     SocketChannelHandler createHandler(SocketChannel channel) {
         return new SocketChannelHandler(
-                                        eventHandlerFactory.createCommunicationsHandler(),
+                                        eventHandlerFactory.createCommunicationsHandler(channel),
                                         this, channel);
     }
 

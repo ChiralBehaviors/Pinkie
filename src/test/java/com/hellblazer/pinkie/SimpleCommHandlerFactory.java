@@ -15,6 +15,7 @@
  */
 package com.hellblazer.pinkie;
 
+import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class SimpleCommHandlerFactory implements CommunicationsHandlerFactory {
     List<SimpleCommHandler> handlers = new ArrayList<SimpleCommHandler>();
 
     @Override
-    public CommunicationsHandler createCommunicationsHandler() {
+    public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
         SimpleCommHandler handler = new SimpleCommHandler();
         handlers.add(handler);
         return handler;

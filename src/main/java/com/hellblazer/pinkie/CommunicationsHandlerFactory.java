@@ -15,6 +15,8 @@
  */
 package com.hellblazer.pinkie;
 
+import java.nio.channels.SocketChannel;
+
 /**
  * Creates instances of communications handlers
  * 
@@ -25,7 +27,10 @@ public interface CommunicationsHandlerFactory {
     /**
      * Create a new instance of a communications handler
      * 
+     * @param channel
+     *            - the inbound socket channel
+     * 
      * @return the new instance
      */
-    CommunicationsHandler createCommunicationsHandler();
+    CommunicationsHandler createCommunicationsHandler(SocketChannel channel);
 }
