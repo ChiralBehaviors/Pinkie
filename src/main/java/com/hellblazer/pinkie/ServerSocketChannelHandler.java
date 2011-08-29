@@ -32,7 +32,8 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class ServerSocketChannelHandler extends ChannelHandler {
+public class ServerSocketChannelHandler<T extends CommunicationsHandler>
+        extends ChannelHandler<T> {
 
     private static Logger log = Logger.getLogger(ServerSocketChannelHandler.class.getCanonicalName());
 
@@ -56,8 +57,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       InetSocketAddress endpointAddress,
                                       SocketOptions socketOptions,
                                       Executor commsExec,
-                                      CommunicationsHandlerFactory factory)
-                                                                           throws IOException {
+                                      CommunicationsHandlerFactory<T> factory)
+                                                                              throws IOException {
         super(handlerName, channel, endpointAddress, socketOptions, commsExec,
               factory);
     }
@@ -66,8 +67,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
                                       Executor commsExec,
-                                      CommunicationsHandlerFactory factory)
-                                                                           throws IOException {
+                                      CommunicationsHandlerFactory<T> factory)
+                                                                              throws IOException {
         this(handlerName, channel, getLocalAddress(channel), socketOptions,
              commsExec, factory);
     }
@@ -76,8 +77,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
                                       Executor commsExec,
-                                      CommunicationsHandlerFactory factory)
-                                                                           throws IOException {
+                                      CommunicationsHandlerFactory<T> factory)
+                                                                              throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
              commsExec, factory);
     }
@@ -93,14 +94,14 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      * @return the socket channel handler for the new connection
      * @throws IOException
      */
-    public void connectTo(InetSocketAddress remoteAddress,
-                          CommunicationsHandler eventHandler)
-                                                             throws IOException {
+    public void connectTo(InetSocketAddress remoteAddress, T eventHandler)
+                                                                          throws IOException {
         SocketChannel socketChannel = SocketChannel.open();
         options.configure(socketChannel.socket());
-        SocketChannelHandler handler = new SocketChannelHandler(eventHandler,
-                                                                this,
-                                                                socketChannel);
+        SocketChannelHandler<T> handler = new SocketChannelHandler<T>(
+                                                                      eventHandler,
+                                                                      this,
+                                                                      socketChannel);
         addHandler(handler);
         SelectionKey key = register(socketChannel, handler, 0);
         socketChannel.configureBlocking(false);
@@ -137,7 +138,9 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             log.fine("Dispatching connected action");
         }
         try {
-            commsExecutor.execute(((SocketChannelHandler) key.attachment()).connectHandler());
+            @SuppressWarnings("unchecked")
+            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "cannot execute connect action", e);

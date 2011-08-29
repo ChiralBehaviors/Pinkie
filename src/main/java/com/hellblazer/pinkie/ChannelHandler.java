@@ -28,6 +28,8 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,22 +49,22 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class ChannelHandler {
-    private final static Logger                log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+public class ChannelHandler<T extends CommunicationsHandler> {
+    private final static Logger                   log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    final Executor                             commsExecutor;
-    final SocketOptions                        options;
-    private final ReentrantLock                handlersLock  = new ReentrantLock();
-    private final InetSocketAddress            localAddress;
-    private final String                       name;
-    private volatile SocketChannelHandler      openHandlers;
-    private final AtomicBoolean                run           = new AtomicBoolean();
-    private final Selector                     selector;
-    private final ExecutorService              selectService;
-    private Future<?>                          selectTask;
-    private final int                          selectTimeout = 1000;
-    private final SelectableChannel            server;
-    private final CommunicationsHandlerFactory eventHandlerFactory;
+    final Executor                                commsExecutor;
+    final SocketOptions                           options;
+    private final ReentrantLock                   handlersLock  = new ReentrantLock();
+    private final InetSocketAddress               localAddress;
+    private final String                          name;
+    private volatile SocketChannelHandler<T>      openHandlers;
+    private final AtomicBoolean                   run           = new AtomicBoolean();
+    private final Selector                        selector;
+    private final ExecutorService                 selectService;
+    private Future<?>                             selectTask;
+    private final int                             selectTimeout = 1000;
+    private final SelectableChannel               server;
+    private final CommunicationsHandlerFactory<T> eventHandlerFactory;
 
     /**
      * Construct a new channel handler
@@ -83,8 +85,8 @@ public class ChannelHandler {
     public ChannelHandler(String handlerName, SelectableChannel channel,
                           InetSocketAddress endpointAddress,
                           SocketOptions socketOptions, Executor commsExec,
-                          CommunicationsHandlerFactory factory)
-                                                               throws IOException {
+                          CommunicationsHandlerFactory<T> factory)
+                                                                  throws IOException {
         name = handlerName;
         server = channel;
         selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
@@ -121,6 +123,23 @@ public class ChannelHandler {
      */
     public InetSocketAddress getLocalAddress() {
         return localAddress;
+    }
+
+    public List<T> getOpenHandlers() {
+        LinkedList<T> handlers = new LinkedList<T>();
+        final Lock myLock = handlersLock;
+        myLock.lock();
+        try {
+            SocketChannelHandler<T> current = openHandlers;
+            while (current != null) {
+                handlers.add(current.getHandler());
+                current = current.next();
+            }
+        } finally {
+            myLock.unlock();
+        }
+
+        return handlers;
     }
 
     /**
@@ -163,7 +182,7 @@ public class ChannelHandler {
         }
     }
 
-    void addHandler(SocketChannelHandler handler) {
+    void addHandler(SocketChannelHandler<T> handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
@@ -177,7 +196,7 @@ public class ChannelHandler {
         }
     }
 
-    void closeHandler(SocketChannelHandler handler) {
+    void closeHandler(SocketChannelHandler<T> handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
@@ -198,10 +217,10 @@ public class ChannelHandler {
      * @param channel
      * @return
      */
-    SocketChannelHandler createHandler(SocketChannel channel) {
-        return new SocketChannelHandler(
-                                        eventHandlerFactory.createCommunicationsHandler(channel),
-                                        this, channel);
+    SocketChannelHandler<T> createHandler(SocketChannel channel) {
+        return new SocketChannelHandler<T>(
+                                           eventHandlerFactory.createCommunicationsHandler(channel),
+                                           this, channel);
     }
 
     void dispatch(SelectionKey key) throws IOException {
@@ -227,7 +246,7 @@ public class ChannelHandler {
         if (log.isLoggable(Level.FINE)) {
             log.fine(String.format("Connection accepted: %s", accepted));
         }
-        SocketChannelHandler handler = createHandler(accepted);
+        SocketChannelHandler<T> handler = createHandler(accepted);
         SelectionKey newKey = register(accepted, handler, 0);
         addHandler(handler);
         newKey.attach(handler);
@@ -246,7 +265,9 @@ public class ChannelHandler {
         }
         key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
         try {
-            commsExecutor.execute(((SocketChannelHandler) key.attachment()).readHandler);
+            @SuppressWarnings("unchecked")
+            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            commsExecutor.execute(handler.readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute read handling");
@@ -260,7 +281,9 @@ public class ChannelHandler {
         }
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         try {
-            commsExecutor.execute(((SocketChannelHandler) key.attachment()).writeHandler);
+            @SuppressWarnings("unchecked")
+            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            commsExecutor.execute(handler.writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute write handling");
@@ -310,13 +333,13 @@ public class ChannelHandler {
         }
     }
 
-    void selectForRead(SocketChannelHandler handler) {
+    void selectForRead(SocketChannelHandler<T> handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         wakeup();
     }
 
-    void selectForWrite(SocketChannelHandler handler) {
+    void selectForWrite(SocketChannelHandler<T> handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
         wakeup();
@@ -369,7 +392,7 @@ public class ChannelHandler {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
-            SocketChannelHandler handler = openHandlers;
+            SocketChannelHandler<T> handler = openHandlers;
             while (handler != null) {
                 handler.internalClose();
             }

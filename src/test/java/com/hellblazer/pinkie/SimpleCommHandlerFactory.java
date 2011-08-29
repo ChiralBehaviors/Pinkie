@@ -24,11 +24,12 @@ import java.util.List;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class SimpleCommHandlerFactory implements CommunicationsHandlerFactory {
+public class SimpleCommHandlerFactory implements
+        CommunicationsHandlerFactory<SimpleCommHandler> {
     List<SimpleCommHandler> handlers = new ArrayList<SimpleCommHandler>();
 
     @Override
-    public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
+    public SimpleCommHandler createCommunicationsHandler(SocketChannel channel) {
         SimpleCommHandler handler = new SimpleCommHandler();
         handlers.add(handler);
         return handler;

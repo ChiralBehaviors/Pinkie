@@ -32,15 +32,19 @@ import junit.framework.TestCase;
  */
 public class TestServerSocketChannelHandler extends TestCase {
 
+    private static interface Condition {
+        boolean value();
+    }
+
     public void testAccept() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
-                                                                                  "Test Handler",
-                                                                                  new SocketOptions(),
-                                                                                  new InetSocketAddress(
-                                                                                                        0),
-                                                                                  Executors.newSingleThreadExecutor(),
-                                                                                  factory);
+        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
+                                                                                                                        "Test Handler",
+                                                                                                                        new SocketOptions(),
+                                                                                                                        new InetSocketAddress(
+                                                                                                                                              0),
+                                                                                                                        Executors.newSingleThreadExecutor(),
+                                                                                                                        factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -65,13 +69,13 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     public void testRead() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
-                                                                                  "Test Handler",
-                                                                                  new SocketOptions(),
-                                                                                  new InetSocketAddress(
-                                                                                                        0),
-                                                                                  Executors.newSingleThreadExecutor(),
-                                                                                  factory);
+        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
+                                                                                                                        "Test Handler",
+                                                                                                                        new SocketOptions(),
+                                                                                                                        new InetSocketAddress(
+                                                                                                                                              0),
+                                                                                                                        Executors.newSingleThreadExecutor(),
+                                                                                                                        factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -98,8 +102,9 @@ public class TestServerSocketChannelHandler extends TestCase {
         buf.put(src);
         buf.flip();
         int written = 0;
-        for (int out = outbound.write(buf); written + out == src.length; written += out)
+        for (int out = outbound.write(buf); written + out == src.length; written += out) {
             ;
+        }
         waitFor("No read was recorded", new Condition() {
             @Override
             public boolean value() {
@@ -118,8 +123,9 @@ public class TestServerSocketChannelHandler extends TestCase {
         buf.put(src);
         buf.flip();
         written = 0;
-        for (int out = outbound.write(buf); written + out == src.length; written += out)
+        for (int out = outbound.write(buf); written + out == src.length; written += out) {
             ;
+        }
         waitFor("No further read was recorded", new Condition() {
             @Override
             public boolean value() {
@@ -139,13 +145,13 @@ public class TestServerSocketChannelHandler extends TestCase {
         socketOptions.setReceive_buffer_size(128);
         socketOptions.setTimeout(100);
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
-                                                                                  "Test Handler",
-                                                                                  new SocketOptions(),
-                                                                                  new InetSocketAddress(
-                                                                                                        0),
-                                                                                  Executors.newSingleThreadExecutor(),
-                                                                                  factory);
+        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
+                                                                                                                        "Test Handler",
+                                                                                                                        new SocketOptions(),
+                                                                                                                        new InetSocketAddress(
+                                                                                                                                              0),
+                                                                                                                        Executors.newSingleThreadExecutor(),
+                                                                                                                        factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         final SocketChannel outbound = SocketChannel.open();
@@ -244,9 +250,5 @@ public class TestServerSocketChannelHandler extends TestCase {
             }
             Thread.sleep(interval);
         }
-    }
-
-    private static interface Condition {
-        boolean value();
     }
 }

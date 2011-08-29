@@ -31,7 +31,7 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class SocketChannelHandler {
+public class SocketChannelHandler<T extends CommunicationsHandler> {
 
     private class ReadHandler implements Runnable {
         @Override
@@ -47,19 +47,19 @@ public class SocketChannelHandler {
         }
     }
 
-    private static final Logger           log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
+    private static final Logger              log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
 
-    final ReadHandler                     readHandler  = new ReadHandler();
-    final WriteHandler                    writeHandler = new WriteHandler();
-    private final SocketChannel           channel;
-    private final ChannelHandler          handler;
-    private volatile SocketChannelHandler next;
-    private volatile boolean              open         = true;
-    private volatile SocketChannelHandler previous;
-    private final CommunicationsHandler   eventHandler;
+    final ReadHandler                        readHandler  = new ReadHandler();
+    final WriteHandler                       writeHandler = new WriteHandler();
+    private final SocketChannel              channel;
+    private final ChannelHandler<T>          handler;
+    private volatile SocketChannelHandler<T> next;
+    private volatile boolean                 open         = true;
+    private volatile SocketChannelHandler<T> previous;
+    private final T                          eventHandler;
 
-    public SocketChannelHandler(CommunicationsHandler eventHandler,
-                                ChannelHandler handler, SocketChannel channel) {
+    public SocketChannelHandler(T eventHandler, ChannelHandler<T> handler,
+                                SocketChannel channel) {
         this.eventHandler = eventHandler;
         this.handler = handler;
         this.channel = channel;
@@ -75,6 +75,10 @@ public class SocketChannelHandler {
             log.log(Level.FINE, format("Closing connection to %s", channel), e);
         }
         internalClose();
+    }
+
+    public T getHandler() {
+        return eventHandler;
     }
 
     /**
@@ -155,7 +159,7 @@ public class SocketChannelHandler {
     /**
      * Private protocol to maintainthe linked list of handlers
      */
-    final void link(SocketChannelHandler h) {
+    final void link(SocketChannelHandler<T> h) {
         h.previous = this;
         next = h;
     }
@@ -163,7 +167,7 @@ public class SocketChannelHandler {
     /**
      * Private protocol to maintainthe linked list of handlers
      */
-    SocketChannelHandler next() {
+    SocketChannelHandler<T> next() {
         return next;
     }
 }
