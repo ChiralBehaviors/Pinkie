@@ -85,13 +85,12 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
 
     /**
      * Connect to the remote address. The connection will be made in a
-     * non-blocking fashion, and only after the
-     * ChannelHandler.handleConnect(SocketChannel) method has been called is the
-     * socket channel actually connected.
+     * non-blocking fashion. The
+     * CommunicationsHandler.handleConnect(SocketChannel) on the event handler
+     * will be called when the socket channel actually connects.
      * 
      * @param remoteAddress
      * @param eventHandler
-     * @return the socket channel handler for the new connection
      * @throws IOException
      */
     public void connectTo(InetSocketAddress remoteAddress, T eventHandler)
@@ -106,8 +105,14 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
         SelectionKey key = register(socketChannel, handler, 0);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
-            // Immediate connection handling
-            handler.connectHandler().run();
+            try {
+                commsExecutor.execute(handler.connectHandler());
+            } catch (RejectedExecutionException e) {
+                if (log.isLoggable(Level.INFO)) {
+                    log.log(Level.INFO,
+                            "too busy to execute connection handling");
+                }
+            }
             return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
