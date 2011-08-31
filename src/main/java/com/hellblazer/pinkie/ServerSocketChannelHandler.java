@@ -15,10 +15,11 @@
  */
 package com.hellblazer.pinkie;
 
+import static java.lang.String.format;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -46,22 +47,9 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
         return server;
     }
 
-    public static InetSocketAddress getLocalAddress(ServerSocketChannel channel) {
+    private final CommunicationsHandlerFactory<T> eventHandlerFactory;
 
-        return new InetSocketAddress(channel.socket().getInetAddress(),
-                                     channel.socket().getLocalPort());
-    }
-
-    public ServerSocketChannelHandler(String handlerName,
-                                      SelectableChannel channel,
-                                      InetSocketAddress endpointAddress,
-                                      SocketOptions socketOptions,
-                                      Executor commsExec,
-                                      CommunicationsHandlerFactory<T> factory)
-                                                                              throws IOException {
-        super(handlerName, channel, endpointAddress, socketOptions, commsExec,
-              factory);
-    }
+    private final ServerSocketChannel             server;
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
@@ -69,8 +57,11 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
                                       Executor commsExec,
                                       CommunicationsHandlerFactory<T> factory)
                                                                               throws IOException {
-        this(handlerName, channel, getLocalAddress(channel), socketOptions,
-             commsExec, factory);
+        super(handlerName, socketOptions, commsExec);
+        eventHandlerFactory = factory;
+        server = channel;
+        server.configureBlocking(false);
+        server.register(selector, SelectionKey.OP_ACCEPT);
     }
 
     public ServerSocketChannelHandler(String handlerName,
@@ -84,72 +75,81 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
     }
 
     /**
-     * Connect to the remote address. The connection will be made in a
-     * non-blocking fashion. The
-     * CommunicationsHandler.handleConnect(SocketChannel) on the event handler
-     * will be called when the socket channel actually connects.
+     * Answer the local address of the endpoint
      * 
-     * @param remoteAddress
-     * @param eventHandler
-     * @throws IOException
+     * @return
      */
-    public void connectTo(InetSocketAddress remoteAddress, T eventHandler)
-                                                                          throws IOException {
-        SocketChannel socketChannel = SocketChannel.open();
-        options.configure(socketChannel.socket());
-        SocketChannelHandler<T> handler = new SocketChannelHandler<T>(
-                                                                      eventHandler,
-                                                                      this,
-                                                                      socketChannel);
-        addHandler(handler);
-        SelectionKey key = register(socketChannel, handler, 0);
-        socketChannel.configureBlocking(false);
-        if (socketChannel.connect(remoteAddress)) {
-            try {
-                commsExecutor.execute(handler.connectHandler());
-            } catch (RejectedExecutionException e) {
-                if (log.isLoggable(Level.INFO)) {
-                    log.log(Level.INFO,
-                            "too busy to execute connection handling");
-                }
-            }
-            return;
-        }
-        key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
-        wakeup();
-        return;
+    public InetSocketAddress getLocalAddress() {
+
+        return new InetSocketAddress(server.socket().getInetAddress(),
+                                     server.socket().getLocalPort());
+    }
+
+    /**
+     * Create an instance of a socket channel handler, using the supplied
+     * channel and key.
+     * 
+     * @param channel
+     * @return
+     */
+    SocketChannelHandler<T> createHandler(SocketChannel channel) {
+        return new SocketChannelHandler<T>(
+                                           eventHandlerFactory.createCommunicationsHandler(channel),
+                                           this, channel);
     }
 
     @Override
     void dispatch(SelectionKey key) throws IOException {
-        if (key.isConnectable()) {
-            handleConnect(key);
+        if (key.isAcceptable()) {
+            handleAccept(key);
         } else {
             super.dispatch(key);
         }
     }
 
-    void handleConnect(SelectionKey key) {
+    void handleAccept(SelectionKey key) throws IOException {
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Handling read");
+            log.finest("Handling accept");
         }
-        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
-        try {
-            ((SocketChannel) key.channel()).finishConnect();
-        } catch (IOException e) {
-            log.log(Level.SEVERE, "Unable to finish connection", e);
-        }
+        ServerSocketChannel server = (ServerSocketChannel) key.channel();
+        SocketChannel accepted = server.accept();
+        options.configure(accepted.socket());
+        accepted.configureBlocking(false);
         if (log.isLoggable(Level.FINE)) {
-            log.fine("Dispatching connected action");
+            log.fine(String.format("Connection accepted: %s", accepted));
         }
+        SocketChannelHandler<T> handler = createHandler(accepted);
+        SelectionKey newKey = register(accepted, handler, 0);
+        addHandler(handler);
+        newKey.attach(handler);
         try {
-            @SuppressWarnings("unchecked")
-            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
-            commsExecutor.execute(handler.connectHandler());
+            commsExecutor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
-            if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "cannot execute connect action", e);
+            if (log.isLoggable(Level.INFO)) {
+                log.log(Level.INFO, "too busy to execute accept handling");
             }
         }
+    }
+
+    /* (non-Javadoc)
+     * @see com.hellblazer.pinkie.SelectableChannelHandler#startService()
+     */
+    @Override
+    void startService() {
+        super.startService();
+        log.info(format("%s local address: %s", name, getLocalAddress()));
+    }
+
+    /* (non-Javadoc)
+     * @see com.hellblazer.pinkie.SelectableChannelHandler#terminateService()
+     */
+    @Override
+    void terminateService() {
+        try {
+            server.close();
+        } catch (IOException e) {
+            log.log(Level.FINEST, String.format("Cannot close: %s", server), e);
+        }
+        super.terminateService();
     }
 }

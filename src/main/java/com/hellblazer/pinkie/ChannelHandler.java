@@ -22,10 +22,8 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ClosedSelectorException;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -43,52 +41,43 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * This class provides a full featured non blocking NIO channel handler with
- * outbound connection capabilities.
+ * This class provides a full featured non blocking NIO handler for selectable
+ * channels. In addition, it provides facilities for dealing with outbound
+ * connections.
  * 
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
 public class ChannelHandler<T extends CommunicationsHandler> {
-    private final static Logger                   log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+    private final static Logger              log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    final Executor                                commsExecutor;
-    final SocketOptions                           options;
-    private final ReentrantLock                   handlersLock  = new ReentrantLock();
-    private final InetSocketAddress               localAddress;
-    private final String                          name;
-    private volatile SocketChannelHandler<T>      openHandlers;
-    private final AtomicBoolean                   run           = new AtomicBoolean();
-    private final Selector                        selector;
-    private final ExecutorService                 selectService;
-    private Future<?>                             selectTask;
-    private final int                             selectTimeout = 1000;
-    private final SelectableChannel               server;
-    private final CommunicationsHandlerFactory<T> eventHandlerFactory;
+    private final ReentrantLock              handlersLock  = new ReentrantLock();
+    private volatile SocketChannelHandler<T> openHandlers;
+    private final AtomicBoolean              run           = new AtomicBoolean();
+    private final ExecutorService            selectService;
+    private Future<?>                        selectTask;
+    private final int                        selectTimeout = 1000;
+    protected final String                   name;
+    protected final Selector                 selector;
+    final Executor                           commsExecutor;
+    final SocketOptions                      options;
 
     /**
      * Construct a new channel handler
      * 
      * @param handlerName
      *            - the String name used to mark the selection thread
-     * @param channel
-     *            - the selectable channel to handle
-     * @param endpointAddress
-     *            - the local endpoint address of the handler
      * @param socketOptions
-     *            - the socket options to configure accpeted sockets
+     *            - the socket options to configure new sockets
      * @param commsExec
      *            - the executor service to handle I/O events
      * @throws IOException
-     *             - if things go pear shaped
+     *             - if things go pear shaped when opening the selector
      */
-    public ChannelHandler(String handlerName, SelectableChannel channel,
-                          InetSocketAddress endpointAddress,
-                          SocketOptions socketOptions, Executor commsExec,
-                          CommunicationsHandlerFactory<T> factory)
-                                                                  throws IOException {
+    public ChannelHandler(String handlerName,
+                                    SocketOptions socketOptions,
+                                    Executor commsExec) throws IOException {
         name = handlerName;
-        server = channel;
         selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -108,21 +97,45 @@ public class ChannelHandler<T extends CommunicationsHandler> {
             }
         });
         selector = Selector.open();
-        server.configureBlocking(false);
-        server.register(selector, SelectionKey.OP_ACCEPT);
-        eventHandlerFactory = factory;
-        localAddress = endpointAddress;
         commsExecutor = commsExec;
         options = socketOptions;
     }
 
     /**
-     * Answer the local address of the endpoint
+     * Connect to the remote address. The connection will be made in a
+     * non-blocking fashion. The
+     * CommunicationsHandler.handleConnect(SocketChannel) on the event handler
+     * will be called when the socket channel actually connects.
      * 
-     * @return
+     * @param remoteAddress
+     * @param eventHandler
+     * @throws IOException
      */
-    public InetSocketAddress getLocalAddress() {
-        return localAddress;
+    public void connectTo(InetSocketAddress remoteAddress, T eventHandler)
+                                                                          throws IOException {
+        SocketChannel socketChannel = SocketChannel.open();
+        options.configure(socketChannel.socket());
+        SocketChannelHandler<T> handler = new SocketChannelHandler<T>(
+                                                                      eventHandler,
+                                                                      this,
+                                                                      socketChannel);
+        addHandler(handler);
+        SelectionKey key = register(socketChannel, handler, 0);
+        socketChannel.configureBlocking(false);
+        if (socketChannel.connect(remoteAddress)) {
+            try {
+                commsExecutor.execute(handler.connectHandler());
+            } catch (RejectedExecutionException e) {
+                if (log.isLoggable(Level.INFO)) {
+                    log.log(Level.INFO,
+                            "too busy to execute connection handling");
+                }
+            }
+            return;
+        }
+        key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
+        wakeup();
+        return;
     }
 
     public List<T> getOpenHandlers() {
@@ -166,8 +179,6 @@ public class ChannelHandler<T extends CommunicationsHandler> {
     public void start() {
         if (run.compareAndSet(false, true)) {
             startService();
-            log.info(format("%s is started, local address: %s", name,
-                            localAddress));
         }
     }
 
@@ -177,8 +188,6 @@ public class ChannelHandler<T extends CommunicationsHandler> {
     public void terminate() {
         if (run.compareAndSet(true, false)) {
             terminateService();
-            log.info(format("%s is terminated, local address: %s", name,
-                            localAddress));
         }
     }
 
@@ -210,51 +219,39 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
     }
 
-    /**
-     * Create an instance of a socket channel handler, using the supplied
-     * channel and key.
-     * 
-     * @param channel
-     * @return
-     */
-    SocketChannelHandler<T> createHandler(SocketChannel channel) {
-        return new SocketChannelHandler<T>(
-                                           eventHandlerFactory.createCommunicationsHandler(channel),
-                                           this, channel);
-    }
-
     void dispatch(SelectionKey key) throws IOException {
-        if (key.isAcceptable()) {
-            handleAccept(key);
-        }
-        if (key.isReadable()) {
-            handleRead(key);
-        }
-        if (key.isWritable()) {
-            handleWrite(key);
+        if (key.isConnectable()) {
+            handleConnect(key);
+        } else {
+            if (key.isReadable()) {
+                handleRead(key);
+            }
+            if (key.isWritable()) {
+                handleWrite(key);
+            }
         }
     }
 
-    void handleAccept(SelectionKey key) throws IOException {
+    void handleConnect(SelectionKey key) {
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Handling accept");
+            log.finest("Handling read");
         }
-        ServerSocketChannel server = (ServerSocketChannel) key.channel();
-        SocketChannel accepted = server.accept();
-        options.configure(accepted.socket());
-        accepted.configureBlocking(false);
-        if (log.isLoggable(Level.FINE)) {
-            log.fine(String.format("Connection accepted: %s", accepted));
-        }
-        SocketChannelHandler<T> handler = createHandler(accepted);
-        SelectionKey newKey = register(accepted, handler, 0);
-        addHandler(handler);
-        newKey.attach(handler);
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
         try {
-            commsExecutor.execute(handler.acceptHandler());
+            ((SocketChannel) key.channel()).finishConnect();
+        } catch (IOException e) {
+            log.log(Level.SEVERE, "Unable to finish connection", e);
+        }
+        if (log.isLoggable(Level.FINE)) {
+            log.fine("Dispatching connected action");
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
-            if (log.isLoggable(Level.INFO)) {
-                log.log(Level.INFO, "too busy to execute accept handling");
+            if (log.isLoggable(Level.FINEST)) {
+                log.log(Level.FINEST, "cannot execute connect action", e);
             }
         }
     }
@@ -358,13 +355,11 @@ public class ChannelHandler<T extends CommunicationsHandler> {
                         }
                     } catch (IOException e) {
                         if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINE, "Error when selecting: "
-                                                + server, e);
+                            log.log(Level.FINE, "Error when selecting", e);
                         }
                     } catch (CancelledKeyException e) {
                         if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINE, "Error when selecting: "
-                                                + server, e);
+                            log.log(Level.FINE, "Error when selecting", e);
                         }
                     } catch (Throwable e) {
                         log.log(Level.SEVERE,
@@ -373,15 +368,11 @@ public class ChannelHandler<T extends CommunicationsHandler> {
                 }
             }
         });
+        log.info(format("%s is started", name));
     }
 
     void terminateService() {
         selector.wakeup();
-        try {
-            server.close();
-        } catch (IOException e) {
-            // do not log
-        }
         try {
             selector.close();
         } catch (IOException e) {
