@@ -74,9 +74,8 @@ public class ChannelHandler<T extends CommunicationsHandler> {
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
-    public ChannelHandler(String handlerName,
-                                    SocketOptions socketOptions,
-                                    Executor commsExec) throws IOException {
+    public ChannelHandler(String handlerName, SocketOptions socketOptions,
+                          Executor commsExec) throws IOException {
         name = handlerName;
         selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
@@ -376,7 +375,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         try {
             selector.close();
         } catch (IOException e) {
-            // do not log
+            log.log(Level.INFO, "Error closing selector", e);
         }
         selectTask.cancel(true);
         selectService.shutdownNow();
@@ -391,6 +390,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         } finally {
             myLock.unlock();
         }
+        log.info(format("%s is terminated", name));
     }
 
     void wakeup() {
