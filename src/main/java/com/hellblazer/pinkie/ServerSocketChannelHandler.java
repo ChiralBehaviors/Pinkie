@@ -81,8 +81,7 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
      */
     public InetSocketAddress getLocalAddress() {
 
-        return new InetSocketAddress(server.socket().getInetAddress(),
-                                     server.socket().getLocalPort());
+        return (InetSocketAddress) server.socket().getLocalSocketAddress();
     }
 
     /**
