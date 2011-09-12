@@ -119,9 +119,10 @@ public class ChannelHandler<T extends CommunicationsHandler> {
                                                                       this,
                                                                       socketChannel);
         addHandler(handler);
-        SelectionKey key = register(socketChannel, handler, 0);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
+            wakeup();
+            register(socketChannel, handler, 0);
             try {
                 commsExecutor.execute(handler.connectHandler());
             } catch (RejectedExecutionException e) {
@@ -132,8 +133,8 @@ public class ChannelHandler<T extends CommunicationsHandler> {
             }
             return;
         }
-        key.interestOps(key.interestOps() | SelectionKey.OP_CONNECT);
         wakeup();
+        register(socketChannel, handler, SelectionKey.OP_CONNECT);
         return;
     }
 
@@ -240,6 +241,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {
             log.log(Level.SEVERE, "Unable to finish connection", e);
+            return;
         }
         if (log.isLoggable(Level.FINE)) {
             log.fine("Dispatching connected action");
@@ -385,6 +387,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
             SocketChannelHandler<T> handler = openHandlers;
             while (handler != null) {
                 handler.internalClose();
+                handler = handler.next();
             }
             openHandlers = null;
         } finally {
