@@ -16,6 +16,7 @@
 package com.hellblazer.pinkie;
 
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.net.Socket;
 
 /**
@@ -58,6 +59,21 @@ public class SocketOptions {
         }
         if (traffic_class > 0) {
             socket.setTrafficClass(traffic_class);
+        }
+    }
+
+    public void configure(ServerSocket socket) throws IOException {
+        if (timeout > 0) {
+            socket.setSoTimeout(timeout);
+        }
+        if (receive_buffer_size > 0) {
+            socket.setReceiveBufferSize(receive_buffer_size);
+        }
+        if (reuse_address) {
+            socket.setReuseAddress(reuse_address);
+        }
+        if (connect_time >= 0 && bandwidth >= 0 && latency >= 0) {
+            socket.setPerformancePreferences(connect_time, latency, bandwidth);
         }
     }
 

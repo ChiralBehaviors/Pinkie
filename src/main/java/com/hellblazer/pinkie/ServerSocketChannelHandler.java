@@ -43,6 +43,7 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
                                                                              throws IOException {
         ServerSocketChannel server = ServerSocketChannel.open();
         ServerSocket serverSocket = server.socket();
+        options.configure(serverSocket);
         serverSocket.bind(endpointAddress, options.getBacklog());
         return server;
     }
