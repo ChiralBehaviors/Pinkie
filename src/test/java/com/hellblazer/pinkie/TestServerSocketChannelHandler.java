@@ -41,7 +41,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
                                                                                                                         "Test Handler",
                                                                                                                         new SocketOptions(),
-                                                                                                                        new InetSocketAddress(
+                                                                                                                        new InetSocketAddress("127.0.0.1", 
                                                                                                                                               0),
                                                                                                                         Executors.newSingleThreadExecutor(),
                                                                                                                         factory);
@@ -72,7 +72,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
                                                                                                                         "Test Handler",
                                                                                                                         new SocketOptions(),
-                                                                                                                        new InetSocketAddress(
+                                                                                                                        new InetSocketAddress("127.0.0.1", 
                                                                                                                                               0),
                                                                                                                         Executors.newSingleThreadExecutor(),
                                                                                                                         factory);
@@ -148,7 +148,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
                                                                                                                         "Test Handler",
                                                                                                                         new SocketOptions(),
-                                                                                                                        new InetSocketAddress(
+                                                                                                                        new InetSocketAddress("127.0.0.1", 
                                                                                                                                               0),
                                                                                                                         Executors.newSingleThreadExecutor(),
                                                                                                                         factory);
