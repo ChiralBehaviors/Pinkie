@@ -33,8 +33,7 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class ServerSocketChannelHandler<T extends CommunicationsHandler>
-        extends ChannelHandler<T> {
+public class ServerSocketChannelHandler extends ChannelHandler {
 
     private static Logger log = Logger.getLogger(ServerSocketChannelHandler.class.getCanonicalName());
 
@@ -48,16 +47,16 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
         return server;
     }
 
-    private final CommunicationsHandlerFactory<T> eventHandlerFactory;
+    private final CommunicationsHandlerFactory eventHandlerFactory;
 
-    private final ServerSocketChannel             server;
+    private final ServerSocketChannel          server;
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
                                       Executor commsExec,
-                                      CommunicationsHandlerFactory<T> factory)
-                                                                              throws IOException {
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
         super(handlerName, socketOptions, commsExec);
         eventHandlerFactory = factory;
         server = channel;
@@ -69,8 +68,8 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
                                       Executor commsExec,
-                                      CommunicationsHandlerFactory<T> factory)
-                                                                              throws IOException {
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
              commsExec, factory);
     }
@@ -92,10 +91,10 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
      * @param channel
      * @return
      */
-    SocketChannelHandler<T> createHandler(SocketChannel channel) {
-        return new SocketChannelHandler<T>(
-                                           eventHandlerFactory.createCommunicationsHandler(channel),
-                                           this, channel);
+    SocketChannelHandler createHandler(SocketChannel channel) {
+        return new SocketChannelHandler(
+                                        eventHandlerFactory.createCommunicationsHandler(channel),
+                                        this, channel);
     }
 
     @Override
@@ -118,7 +117,7 @@ public class ServerSocketChannelHandler<T extends CommunicationsHandler>
         if (log.isLoggable(Level.FINE)) {
             log.fine(String.format("Connection accepted: %s", accepted));
         }
-        SocketChannelHandler<T> handler = createHandler(accepted);
+        SocketChannelHandler handler = createHandler(accepted);
         SelectionKey newKey = register(accepted, handler, 0);
         addHandler(handler);
         newKey.attach(handler);

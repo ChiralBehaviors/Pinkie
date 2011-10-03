@@ -24,8 +24,7 @@ import java.util.List;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class SimpleCommHandlerFactory implements
-        CommunicationsHandlerFactory<SimpleCommHandler> {
+public class SimpleCommHandlerFactory implements CommunicationsHandlerFactory {
     List<SimpleCommHandler> handlers = new ArrayList<SimpleCommHandler>();
 
     @Override

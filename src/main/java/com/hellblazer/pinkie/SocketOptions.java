@@ -38,6 +38,21 @@ public class SocketOptions {
     private int     timeout             = -1;
     private int     traffic_class       = -1;
 
+    public void configure(ServerSocket socket) throws IOException {
+        if (timeout > 0) {
+            socket.setSoTimeout(timeout);
+        }
+        if (receive_buffer_size > 0) {
+            socket.setReceiveBufferSize(receive_buffer_size);
+        }
+        if (reuse_address) {
+            socket.setReuseAddress(reuse_address);
+        }
+        if (connect_time >= 0 && bandwidth >= 0 && latency >= 0) {
+            socket.setPerformancePreferences(connect_time, latency, bandwidth);
+        }
+    }
+
     public void configure(Socket socket) throws IOException {
         if (no_delay) {
             socket.setTcpNoDelay(true);
@@ -59,21 +74,6 @@ public class SocketOptions {
         }
         if (traffic_class > 0) {
             socket.setTrafficClass(traffic_class);
-        }
-    }
-
-    public void configure(ServerSocket socket) throws IOException {
-        if (timeout > 0) {
-            socket.setSoTimeout(timeout);
-        }
-        if (receive_buffer_size > 0) {
-            socket.setReceiveBufferSize(receive_buffer_size);
-        }
-        if (reuse_address) {
-            socket.setReuseAddress(reuse_address);
-        }
-        if (connect_time >= 0 && bandwidth >= 0 && latency >= 0) {
-            socket.setPerformancePreferences(connect_time, latency, bandwidth);
         }
     }
 

@@ -64,8 +64,7 @@ public interface CommunicationsHandler {
      * @param channel
      * @param handler
      */
-    void handleAccept(SocketChannel channel,
-                      SocketChannelHandler<? extends CommunicationsHandler> handler);
+    void handleAccept(SocketChannel channel, SocketChannelHandler handler);
 
     /**
      * Handle the connection of the outbound socket
@@ -73,8 +72,7 @@ public interface CommunicationsHandler {
      * @param channel
      * @param handler
      */
-    void handleConnect(SocketChannel channel,
-                       SocketChannelHandler<? extends CommunicationsHandler> handler);
+    void handleConnect(SocketChannel channel, SocketChannelHandler handler);
 
     /**
      * Handle the read ready socket

@@ -32,26 +32,25 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class SimpleCommHandler implements CommunicationsHandler {
 
-    final List<byte[]>                             reads     = new ArrayList<byte[]>();
-    final List<ByteBuffer>                         writes    = new CopyOnWriteArrayList<ByteBuffer>();
-    final AtomicBoolean                            accepted  = new AtomicBoolean();
-    final AtomicBoolean                            connected = new AtomicBoolean();
-    final AtomicReference<SocketChannelHandler<?>> handler   = new AtomicReference<SocketChannelHandler<?>>();
+    final AtomicBoolean                         accepted  = new AtomicBoolean();
+    final AtomicBoolean                         connected = new AtomicBoolean();
+    final AtomicReference<SocketChannelHandler> handler   = new AtomicReference<SocketChannelHandler>();
+    final List<byte[]>                          reads     = new ArrayList<byte[]>();
+    final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<ByteBuffer>();
 
     @Override
     public void closing(SocketChannel channel) {
     }
 
     @Override
-    public void handleAccept(SocketChannel channel,
-                             SocketChannelHandler<?> handler) {
+    public void handleAccept(SocketChannel channel, SocketChannelHandler handler) {
         this.handler.set(handler);
         accepted.set(true);
     }
 
     @Override
     public void handleConnect(SocketChannel channel,
-                              SocketChannelHandler<?> handler) {
+                              SocketChannelHandler handler) {
         connected.set(true);
     }
 

@@ -23,7 +23,7 @@ import java.nio.channels.SocketChannel;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public interface CommunicationsHandlerFactory<T extends CommunicationsHandler> {
+public interface CommunicationsHandlerFactory {
     /**
      * Create a new instance of a communications handler
      * 
@@ -32,5 +32,5 @@ public interface CommunicationsHandlerFactory<T extends CommunicationsHandler> {
      * 
      * @return the new instance
      */
-    T createCommunicationsHandler(SocketChannel channel);
+    CommunicationsHandler createCommunicationsHandler(SocketChannel channel);
 }

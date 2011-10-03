@@ -38,13 +38,14 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     public void testAccept() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
-                                                                                                                        "Test Handler",
-                                                                                                                        new SocketOptions(),
-                                                                                                                        new InetSocketAddress("127.0.0.1", 
-                                                                                                                                              0),
-                                                                                                                        Executors.newSingleThreadExecutor(),
-                                                                                                                        factory);
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        "127.0.0.1",
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -69,13 +70,14 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     public void testRead() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
-                                                                                                                        "Test Handler",
-                                                                                                                        new SocketOptions(),
-                                                                                                                        new InetSocketAddress("127.0.0.1", 
-                                                                                                                                              0),
-                                                                                                                        Executors.newSingleThreadExecutor(),
-                                                                                                                        factory);
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        "127.0.0.1",
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         SocketChannel outbound = SocketChannel.open();
@@ -145,13 +147,14 @@ public class TestServerSocketChannelHandler extends TestCase {
         socketOptions.setReceive_buffer_size(128);
         socketOptions.setTimeout(100);
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler<SimpleCommHandler> handler = new ServerSocketChannelHandler<SimpleCommHandler>(
-                                                                                                                        "Test Handler",
-                                                                                                                        new SocketOptions(),
-                                                                                                                        new InetSocketAddress("127.0.0.1", 
-                                                                                                                                              0),
-                                                                                                                        Executors.newSingleThreadExecutor(),
-                                                                                                                        factory);
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        "127.0.0.1",
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
         final SocketChannel outbound = SocketChannel.open();

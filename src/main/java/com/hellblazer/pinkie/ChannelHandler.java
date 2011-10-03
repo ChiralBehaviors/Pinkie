@@ -48,19 +48,19 @@ import java.util.logging.Logger;
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
-public class ChannelHandler<T extends CommunicationsHandler> {
-    private final static Logger              log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+public class ChannelHandler {
+    private final static Logger           log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    private final ReentrantLock              handlersLock  = new ReentrantLock();
-    private volatile SocketChannelHandler<T> openHandlers;
-    private final AtomicBoolean              run           = new AtomicBoolean();
-    private final ExecutorService            selectService;
-    private Future<?>                        selectTask;
-    private final int                        selectTimeout = 1000;
-    protected final String                   name;
-    protected final Selector                 selector;
-    final Executor                           commsExecutor;
-    final SocketOptions                      options;
+    private final ReentrantLock           handlersLock  = new ReentrantLock();
+    private volatile SocketChannelHandler openHandlers;
+    private final AtomicBoolean           run           = new AtomicBoolean();
+    private final ExecutorService         selectService;
+    private Future<?>                     selectTask;
+    private final int                     selectTimeout = 1000;
+    protected final String                name;
+    protected final Selector              selector;
+    final Executor                        commsExecutor;
+    final SocketOptions                   options;
 
     /**
      * Construct a new channel handler
@@ -110,14 +110,14 @@ public class ChannelHandler<T extends CommunicationsHandler> {
      * @param eventHandler
      * @throws IOException
      */
-    public void connectTo(InetSocketAddress remoteAddress, T eventHandler)
-                                                                          throws IOException {
+    public void connectTo(InetSocketAddress remoteAddress,
+                          CommunicationsHandler eventHandler)
+                                                             throws IOException {
         SocketChannel socketChannel = SocketChannel.open();
         options.configure(socketChannel.socket());
-        SocketChannelHandler<T> handler = new SocketChannelHandler<T>(
-                                                                      eventHandler,
-                                                                      this,
-                                                                      socketChannel);
+        SocketChannelHandler handler = new SocketChannelHandler(eventHandler,
+                                                                this,
+                                                                socketChannel);
         addHandler(handler);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
@@ -138,12 +138,12 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         return;
     }
 
-    public List<T> getOpenHandlers() {
-        LinkedList<T> handlers = new LinkedList<T>();
+    public List<CommunicationsHandler> getOpenHandlers() {
+        LinkedList<CommunicationsHandler> handlers = new LinkedList<CommunicationsHandler>();
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
-            SocketChannelHandler<T> current = openHandlers;
+            SocketChannelHandler current = openHandlers;
             while (current != null) {
                 handlers.add(current.getHandler());
                 current = current.next();
@@ -191,7 +191,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
     }
 
-    void addHandler(SocketChannelHandler<T> handler) {
+    void addHandler(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
@@ -205,7 +205,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
     }
 
-    void closeHandler(SocketChannelHandler<T> handler) {
+    void closeHandler(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
@@ -247,8 +247,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
             log.fine("Dispatching connected action");
         }
         try {
-            @SuppressWarnings("unchecked")
-            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.FINEST)) {
@@ -263,8 +262,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
         key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
         try {
-            @SuppressWarnings("unchecked")
-            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
@@ -279,8 +277,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         try {
-            @SuppressWarnings("unchecked")
-            SocketChannelHandler<T> handler = (SocketChannelHandler<T>) key.attachment();
+            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
@@ -331,13 +328,13 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         }
     }
 
-    void selectForRead(SocketChannelHandler<T> handler) {
+    void selectForRead(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         wakeup();
     }
 
-    void selectForWrite(SocketChannelHandler<T> handler) {
+    void selectForWrite(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
         wakeup();
@@ -384,7 +381,7 @@ public class ChannelHandler<T extends CommunicationsHandler> {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
-            SocketChannelHandler<T> handler = openHandlers;
+            SocketChannelHandler handler = openHandlers;
             while (handler != null) {
                 handler.internalClose();
                 handler = handler.next();
