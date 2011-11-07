@@ -20,6 +20,7 @@ import static java.lang.String.format;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -53,7 +54,7 @@ public class SocketChannelHandler {
     private final CommunicationsHandler   eventHandler;
     private final ChannelHandler          handler;
     private volatile SocketChannelHandler next;
-    private volatile boolean              open         = true;
+    private final AtomicBoolean           open         = new AtomicBoolean(true);
     private volatile SocketChannelHandler previous;
     final ReadHandler                     readHandler  = new ReadHandler();
     final WriteHandler                    writeHandler = new WriteHandler();
@@ -69,12 +70,22 @@ public class SocketChannelHandler {
      * Close the handler
      */
     public void close() {
-        handler.closeHandler(this);
-        if (log.isLoggable(Level.FINE)) {
-            Exception e = new Exception("Socket close trace");
-            log.log(Level.FINE, format("Closing connection to %s", channel), e);
+        if (open.compareAndSet(true, false)) {
+            if (log.isLoggable(Level.FINE)) {
+                Exception e = new Exception("Socket close trace");
+                log.log(Level.FINE, format("Closing connection to %s", channel), e);
+            }
+            eventHandler.closing(channel);
+            try {
+                channel.close();
+            } catch (IOException e) {
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST,
+                            String.format("Error closing channel %s", channel),
+                            e);
+                }
+            }
         }
-        internalClose();
     }
 
     public CommunicationsHandler getHandler() {
@@ -87,7 +98,7 @@ public class SocketChannelHandler {
      * @return
      */
     public boolean open() {
-        return open;
+        return open.get();
     }
 
     /**
@@ -145,15 +156,6 @@ public class SocketChannelHandler {
 
     SocketChannel getChannel() {
         return channel;
-    }
-
-    final void internalClose() {
-        eventHandler.closing(channel);
-        open = false;
-        try {
-            channel.close();
-        } catch (IOException e) {
-        }
     }
 
     /**

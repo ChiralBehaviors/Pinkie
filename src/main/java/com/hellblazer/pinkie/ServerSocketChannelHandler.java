@@ -48,7 +48,6 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     }
 
     private final CommunicationsHandlerFactory eventHandlerFactory;
-
     private final ServerSocketChannel          server;
 
     public ServerSocketChannelHandler(String handlerName,
@@ -127,6 +126,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute accept handling");
             }
+            handler.close();
         }
     }
 

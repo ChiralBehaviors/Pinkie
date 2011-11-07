@@ -233,60 +233,64 @@ public class ChannelHandler {
     }
 
     void handleConnect(SelectionKey key) {
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
-        key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
+        SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {
             log.log(Level.SEVERE, "Unable to finish connection", e);
+            handler.close();
             return;
         }
         if (log.isLoggable(Level.FINE)) {
             log.fine("Dispatching connected action");
         }
         try {
-            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "cannot execute connect action", e);
             }
+            handler.close();
         }
     }
 
     void handleRead(SelectionKey key) {
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling read");
         }
-        key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
+        SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
-            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute read handling");
             }
+            handler.close();
         }
     }
 
     void handleWrite(SelectionKey key) {
+        key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         if (log.isLoggable(Level.FINEST)) {
             log.finest("Handling write");
         }
-        key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
+        SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
-            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             commsExecutor.execute(handler.writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO, "too busy to execute write handling");
             }
+            handler.close();
         }
     }
 
-    SelectionKey register(SocketChannel channel, Object handler, int operation) {
+    SelectionKey register(SocketChannel channel, SocketChannelHandler handler, int operation) {
         SelectionKey key = null;
         try {
             key = channel.register(selector, operation, handler);
@@ -297,6 +301,7 @@ public class ChannelHandler {
             if (log.isLoggable(Level.FINEST)) {
                 log.log(Level.FINEST, "channel has been closed", e);
             }
+            handler.close();
         }
         return key;
     }
@@ -383,7 +388,7 @@ public class ChannelHandler {
         try {
             SocketChannelHandler handler = openHandlers;
             while (handler != null) {
-                handler.internalClose();
+                handler.close();
                 handler = handler.next();
             }
             openHandlers = null;
