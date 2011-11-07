@@ -37,14 +37,14 @@ public class SocketChannelHandler {
     private class ReadHandler implements Runnable {
         @Override
         public void run() {
-            eventHandler.handleRead(channel);
+            eventHandler.readReady();
         }
     }
 
     private class WriteHandler implements Runnable {
         @Override
         public void run() {
-            eventHandler.handleWrite(channel);
+            eventHandler.writeReady();
         }
     }
 
@@ -73,9 +73,10 @@ public class SocketChannelHandler {
         if (open.compareAndSet(true, false)) {
             if (log.isLoggable(Level.FINE)) {
                 Exception e = new Exception("Socket close trace");
-                log.log(Level.FINE, format("Closing connection to %s", channel), e);
+                log.log(Level.FINE,
+                        format("Closing connection to %s", channel), e);
             }
-            eventHandler.closing(channel);
+            eventHandler.closing();
             try {
                 channel.close();
             } catch (IOException e) {
@@ -127,7 +128,7 @@ public class SocketChannelHandler {
         return new Runnable() {
             @Override
             public void run() {
-                eventHandler.handleAccept(channel, SocketChannelHandler.this);
+                eventHandler.accept(SocketChannelHandler.this);
             }
         };
     }
@@ -136,7 +137,7 @@ public class SocketChannelHandler {
         return new Runnable() {
             @Override
             public void run() {
-                eventHandler.handleConnect(channel, SocketChannelHandler.this);
+                eventHandler.connect(SocketChannelHandler.this);
             }
         };
     }
@@ -154,7 +155,7 @@ public class SocketChannelHandler {
         next = previous = null;
     }
 
-    SocketChannel getChannel() {
+    public SocketChannel getChannel() {
         return channel;
     }
 

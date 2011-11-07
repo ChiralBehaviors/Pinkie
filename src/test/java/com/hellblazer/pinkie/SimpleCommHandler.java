@@ -18,7 +18,6 @@ package com.hellblazer.pinkie;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,27 +38,26 @@ public class SimpleCommHandler implements CommunicationsHandler {
     final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<ByteBuffer>();
 
     @Override
-    public void closing(SocketChannel channel) {
+    public void closing() {
     }
 
     @Override
-    public void handleAccept(SocketChannel channel, SocketChannelHandler handler) {
+    public void accept(SocketChannelHandler handler) {
         this.handler.set(handler);
         accepted.set(true);
     }
 
     @Override
-    public void handleConnect(SocketChannel channel,
-                              SocketChannelHandler handler) {
+    public void connect(SocketChannelHandler handler) {
         connected.set(true);
     }
 
     @Override
-    public void handleRead(SocketChannel channel) {
+    public void readReady() {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ByteBuffer buffer = ByteBuffer.wrap(new byte[1024]);
-            for (int read = channel.read(buffer); read != 0; read = channel.read(buffer)) {
+            for (int read = handler.get().getChannel().read(buffer); read != 0; read = handler.get().getChannel().read(buffer)) {
                 buffer.flip();
                 byte[] b = new byte[read];
                 buffer.get(b, 0, read);
@@ -74,13 +72,13 @@ public class SimpleCommHandler implements CommunicationsHandler {
     }
 
     @Override
-    public void handleWrite(SocketChannel channel) {
+    public void writeReady() {
         if (writes.size() == 0) {
             return;
         }
         try {
             ByteBuffer buffer = writes.get(0);
-            channel.write(buffer);
+            handler.get().getChannel().write(buffer);
             if (!buffer.hasRemaining()) {
                 writes.remove(0);
             } else {

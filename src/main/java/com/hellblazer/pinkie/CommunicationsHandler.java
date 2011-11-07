@@ -15,7 +15,6 @@
  */
 package com.hellblazer.pinkie;
 
-import java.nio.channels.SocketChannel;
 
 /**
  * The interface that a communications handler implements to handle the
@@ -24,10 +23,10 @@ import java.nio.channels.SocketChannel;
  * Implementors of handlers will be called back on one of the four methods:
  * 
  * <pre>
- *      handleAccept(SocketChannel, SocketChannelHandler)
- *      handleConnect(SocketChannel, SocketChannelHandler)
- *      handleRead(SocketChannel)
- *      handleWrite(SocketChannel)
+ *      accept(SocketChannelHandler)
+ *      connect(SocketChannelHandler)
+ *      readReady()
+ *      writeReady()
  * </pre>
  * 
  * when the socket becomes connected, read ready, write ready or is accepted.
@@ -56,35 +55,33 @@ public interface CommunicationsHandler {
     /**
      * The channel is closing, perform any clean up necessary
      */
-    void closing(SocketChannel channel);
+    void closing();
 
     /**
      * Handle the accept of the socket. The SocketChannel
      * 
-     * @param channel
      * @param handler
      */
-    void handleAccept(SocketChannel channel, SocketChannelHandler handler);
+    void accept(SocketChannelHandler handler);
 
     /**
      * Handle the connection of the outbound socket
      * 
-     * @param channel
      * @param handler
      */
-    void handleConnect(SocketChannel channel, SocketChannelHandler handler);
+    void connect(SocketChannelHandler handler);
 
     /**
      * Handle the read ready socket
      * 
      * @param channel
      */
-    void handleRead(SocketChannel channel);
+    void readReady();
 
     /**
      * Handle the write ready socket
      * 
      * @param channel
      */
-    void handleWrite(SocketChannel channel);
+    void writeReady();
 }
