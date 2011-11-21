@@ -290,7 +290,8 @@ public class ChannelHandler {
         }
     }
 
-    SelectionKey register(SocketChannel channel, SocketChannelHandler handler, int operation) {
+    SelectionKey register(SocketChannel channel, SocketChannelHandler handler,
+                          int operation) {
         SelectionKey key = null;
         try {
             key = channel.register(selector, operation, handler);
@@ -335,12 +336,20 @@ public class ChannelHandler {
 
     void selectForRead(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
+        if (key == null) {
+            log.info(String.format("Key is null for %s" + handler.getChannel()));
+            return;
+        }
         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         wakeup();
     }
 
     void selectForWrite(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
+        if (key == null) {
+            log.info(String.format("Key is null for %s" + handler.getChannel()));
+            return;
+        }
         key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
         wakeup();
     }
