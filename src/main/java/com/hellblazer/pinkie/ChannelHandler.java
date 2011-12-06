@@ -101,6 +101,17 @@ public class ChannelHandler {
     }
 
     /**
+     * Close the open handlers managed by the receiver
+     */
+    public void closeOpenHandlers() {
+        SocketChannelHandler current = openHandlers;
+        while (current != null) {
+            current = current.next();
+            current.close();
+        }
+    }
+
+    /**
      * Connect to the remote address. The connection will be made in a
      * non-blocking fashion. The
      * CommunicationsHandler.handleConnect(SocketChannel) on the event handler
