@@ -51,7 +51,7 @@ public class SocketChannelHandler {
     private static final Logger           log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
 
     private final SocketChannel           channel;
-    private final CommunicationsHandler   eventHandler;
+    private CommunicationsHandler         eventHandler;
     private final ChannelHandler          handler;
     private volatile SocketChannelHandler next;
     private final AtomicBoolean           open         = new AtomicBoolean(true);
@@ -89,6 +89,10 @@ public class SocketChannelHandler {
         }
     }
 
+    public SocketChannel getChannel() {
+        return channel;
+    }
+
     public CommunicationsHandler getHandler() {
         return eventHandler;
     }
@@ -100,6 +104,15 @@ public class SocketChannelHandler {
      */
     public boolean open() {
         return open.get();
+    }
+
+    /**
+     * Reset the event handler
+     * 
+     * @param handler
+     */
+    public void resetHandler(CommunicationsHandler handler) {
+        eventHandler = handler;
     }
 
     /**
@@ -153,10 +166,6 @@ public class SocketChannelHandler {
             next.previous = previous;
         }
         next = previous = null;
-    }
-
-    public SocketChannel getChannel() {
-        return channel;
     }
 
     /**
