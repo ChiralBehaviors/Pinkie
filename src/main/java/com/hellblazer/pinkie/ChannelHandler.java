@@ -104,10 +104,17 @@ public class ChannelHandler {
      * Close the open handlers managed by the receiver
      */
     public void closeOpenHandlers() {
-        SocketChannelHandler current = openHandlers;
-        while (current != null) {
-            current = current.next();
-            current.close();
+        final Lock myLock = handlersLock;
+        myLock.lock();
+        try {
+            SocketChannelHandler handler = openHandlers;
+            while (handler != null) {
+                handler.close();
+                handler = handler.next();
+            }
+            openHandlers = null;
+        } finally {
+            myLock.unlock();
         }
     }
 
@@ -404,18 +411,7 @@ public class ChannelHandler {
         }
         selectTask.cancel(true);
         selectService.shutdownNow();
-        final Lock myLock = handlersLock;
-        myLock.lock();
-        try {
-            SocketChannelHandler handler = openHandlers;
-            while (handler != null) {
-                handler.close();
-                handler = handler.next();
-            }
-            openHandlers = null;
-        } finally {
-            myLock.unlock();
-        }
+        closeOpenHandlers();
         log.info(format("%s is terminated", name));
     }
 
