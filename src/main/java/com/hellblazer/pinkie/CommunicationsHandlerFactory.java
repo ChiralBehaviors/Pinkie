@@ -30,7 +30,7 @@ public interface CommunicationsHandlerFactory {
      * @param channel
      *            - the inbound socket channel
      * 
-     * @return the new instance
+     * @return the new instance or null if no handler can be/should be created
      */
     CommunicationsHandler createCommunicationsHandler(SocketChannel channel);
 }

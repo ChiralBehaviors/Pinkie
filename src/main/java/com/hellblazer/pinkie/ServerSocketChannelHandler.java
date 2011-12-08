@@ -83,19 +83,6 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         return (InetSocketAddress) server.socket().getLocalSocketAddress();
     }
 
-    /**
-     * Create an instance of a socket channel handler, using the supplied
-     * channel and key.
-     * 
-     * @param channel
-     * @return
-     */
-    SocketChannelHandler createHandler(SocketChannel channel) {
-        return new SocketChannelHandler(
-                                        eventHandlerFactory.createCommunicationsHandler(channel),
-                                        this, channel);
-    }
-
     @Override
     void dispatch(SelectionKey key) throws IOException {
         if (key.isAcceptable()) {
@@ -116,7 +103,13 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         if (log.isLoggable(Level.FINE)) {
             log.fine(String.format("Connection accepted: %s", accepted));
         }
-        SocketChannelHandler handler = createHandler(accepted);
+        CommunicationsHandler commHandler = eventHandlerFactory.createCommunicationsHandler(accepted);
+        if (commHandler == null) {
+            accepted.close();
+            return;
+        }
+        SocketChannelHandler handler = new SocketChannelHandler(commHandler,
+                                                                this, accepted);
         SelectionKey newKey = register(accepted, handler, 0);
         addHandler(handler);
         newKey.attach(handler);

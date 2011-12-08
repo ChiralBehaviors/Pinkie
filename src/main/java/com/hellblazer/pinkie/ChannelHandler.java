@@ -303,6 +303,7 @@ public class ChannelHandler {
 
     SelectionKey register(SocketChannel channel, SocketChannelHandler handler,
                           int operation) {
+        assert !channel.isBlocking() : "Socket has not been set to non blocking mode!";
         SelectionKey key = null;
         try {
             key = channel.register(selector, operation, handler);
