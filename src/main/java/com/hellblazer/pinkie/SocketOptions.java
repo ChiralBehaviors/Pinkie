@@ -33,7 +33,7 @@ public class SocketOptions {
     private int     linger              = -1;
     private boolean no_delay            = true;
     private int     receive_buffer_size = -1;
-    private boolean reuse_address       = true;
+    private boolean reuse_address       = false;
     private int     send_buffer_size    = -1;
     private int     timeout             = -1;
     private int     traffic_class       = -1;

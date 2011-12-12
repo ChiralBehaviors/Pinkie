@@ -20,8 +20,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import junit.framework.TestCase;
 
@@ -186,8 +190,9 @@ public class TestServerSocketChannelHandler extends TestCase {
         buf.flip();
         scHandler.writes.add(buf);
 
-        buf = ByteBuffer.wrap(new byte[8192]);
-        src[1] = new byte[8192];
+        int testLength = 8192;
+        buf = ByteBuffer.wrap(new byte[testLength]);
+        src[1] = new byte[testLength];
         Arrays.fill(src[1], (byte) 12);
         buf.put(src[1]);
         buf.flip();
@@ -244,6 +249,108 @@ public class TestServerSocketChannelHandler extends TestCase {
         }
     }
 
+    public void testEndToEnd() throws Exception {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.setSend_buffer_size(128);
+        socketOptions.setReceive_buffer_size(128);
+        socketOptions.setTimeout(100);
+        final SimpleCommHandlerFactory outboundFactory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler outboundHandler = new ServerSocketChannelHandler(
+                                                                                          "Test write Handler",
+                                                                                          new SocketOptions(),
+                                                                                          new InetSocketAddress(
+                                                                                                                "127.0.0.1",
+                                                                                                                0),
+                                                                                          Executors.newSingleThreadExecutor(),
+                                                                                          outboundFactory);
+        outboundHandler.start();
+
+        int testLength = 8192;
+        final ReadHandlerFactory inboundFactory = new ReadHandlerFactory(
+                                                                         testLength);
+        final ServerSocketChannelHandler inboundHandler = new ServerSocketChannelHandler(
+                                                                                         "Test read Handler",
+                                                                                         new SocketOptions(),
+                                                                                         new InetSocketAddress(
+                                                                                                               "127.0.0.1",
+                                                                                                               0),
+                                                                                         Executors.newSingleThreadExecutor(),
+                                                                                         inboundFactory);
+        InetSocketAddress endpoint = inboundHandler.getLocalAddress();
+
+        inboundHandler.start();
+
+        final SimpleCommHandler writeHandler = new SimpleCommHandler();
+        outboundHandler.connectTo(endpoint, writeHandler);
+
+        waitFor("write handler not connected", new Condition() {
+            @Override
+            public boolean value() {
+                return writeHandler.connected.get();
+            }
+        }, 10000, 100);
+
+        waitFor("No inbound handler was created", new Condition() {
+            @Override
+            public boolean value() {
+                return inboundFactory.handlers.size() >= 1;
+            }
+        }, 10000, 100);
+
+        final ReadHandler readHandler = inboundFactory.handlers.get(0);
+
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return readHandler.accepted.get();
+            }
+        }, 2000, 100);
+
+        final byte[][] src = new byte[2][];
+
+        ByteBuffer buf = ByteBuffer.wrap(new byte[testLength]);
+        src[0] = new byte[8192];
+        Arrays.fill(src[0], (byte) 6);
+        buf.put(src[0]);
+        buf.flip();
+        writeHandler.writes.add(buf);
+
+        buf = ByteBuffer.wrap(new byte[8192]);
+        src[1] = new byte[8192];
+        Arrays.fill(src[1], (byte) 12);
+        buf.put(src[1]);
+        buf.flip();
+        writeHandler.writes.add(buf);
+
+        writeHandler.selectForWrite();
+        readHandler.selectForRead();
+
+        waitFor("1st read was not completed", new Condition() {
+            @Override
+            public boolean value() {
+                return readHandler.reads.size() == 1;
+            }
+        }, 4000, 100);
+
+        writeHandler.selectForWrite();
+        readHandler.selectForRead();
+
+        waitFor("1st read was not completed", new Condition() {
+            @Override
+            public boolean value() {
+                return readHandler.reads.size() >= 1;
+            }
+        }, 4000, 100);
+
+        int j = 0;
+        for (byte[] result : readHandler.reads) {
+            for (int i = 0; i < src[j].length; i++) {
+                assertEquals(src[j][i], result[i]);
+            }
+            j++;
+        }
+    }
+
     void waitFor(String reason, Condition condition, long timeout, long interval)
                                                                                  throws InterruptedException {
         long target = System.currentTimeMillis() + timeout;
@@ -253,5 +360,84 @@ public class TestServerSocketChannelHandler extends TestCase {
             }
             Thread.sleep(interval);
         }
+    }
+
+    private static class ReadHandlerFactory implements
+                    CommunicationsHandlerFactory {
+        final int         readLength;
+        List<ReadHandler> handlers = new ArrayList<ReadHandler>();
+
+        public ReadHandlerFactory(int readLength) {
+            super();
+            this.readLength = readLength;
+        }
+
+        @Override
+        public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
+            ReadHandler readHandler = new ReadHandler(readLength);
+            handlers.add(readHandler);
+            return readHandler;
+        }
+
+    }
+
+    private static class ReadHandler implements CommunicationsHandler {
+        SocketChannelHandler handler;
+        List<byte[]>         reads    = new CopyOnWriteArrayList<byte[]>();
+        final ByteBuffer     read;
+        final int            readLength;
+        final AtomicBoolean  accepted = new AtomicBoolean();
+
+        public ReadHandler(int readLength) {
+            read = ByteBuffer.allocate(readLength);
+            this.readLength = readLength;
+        }
+
+        public void selectForRead() {
+            handler.selectForRead();
+        }
+
+        @Override
+        public void closing() {
+            // TODO Auto-generated method stub
+
+        }
+
+        @Override
+        public void accept(SocketChannelHandler handler) {
+            this.handler = handler;
+            accepted.set(true);
+        }
+
+        @Override
+        public void connect(SocketChannelHandler handler) {
+            // TODO Auto-generated method stub
+
+        }
+
+        @Override
+        public void readReady() {
+            try {
+                handler.getChannel().read(read);
+            } catch (IOException e) {
+                throw new IllegalStateException();
+            }
+            if (!read.hasRemaining()) {
+                byte[] buf = new byte[readLength];
+                read.flip();
+                read.get(buf);
+                reads.add(buf);
+                read.clear();
+            } else {
+                handler.selectForRead();
+            }
+        }
+
+        @Override
+        public void writeReady() {
+            // TODO Auto-generated method stub
+
+        }
+
     }
 }

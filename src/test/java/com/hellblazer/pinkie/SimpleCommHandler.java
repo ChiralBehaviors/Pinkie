@@ -50,6 +50,7 @@ public class SimpleCommHandler implements CommunicationsHandler {
     @Override
     public void connect(SocketChannelHandler handler) {
         connected.set(true);
+        this.handler.set(handler);
     }
 
     @Override

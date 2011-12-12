@@ -32,6 +32,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,18 +50,19 @@ import java.util.logging.Logger;
  * 
  */
 public class ChannelHandler {
-    private final static Logger           log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
+    private final static Logger                   log           = Logger.getLogger(ChannelHandler.class.getCanonicalName());
 
-    private final ReentrantLock           handlersLock  = new ReentrantLock();
-    private volatile SocketChannelHandler openHandlers;
-    private final AtomicBoolean           run           = new AtomicBoolean();
-    private final ExecutorService         selectService;
-    private Future<?>                     selectTask;
-    private final int                     selectTimeout = 1000;
-    protected final String                name;
-    protected final Selector              selector;
-    final Executor                        commsExecutor;
-    final SocketOptions                   options;
+    private final ReentrantLock                   handlersLock  = new ReentrantLock();
+    private volatile SocketChannelHandler         openHandlers;
+    private final AtomicBoolean                   run           = new AtomicBoolean();
+    private final ExecutorService                 selectService;
+    private Future<?>                             selectTask;
+    private final int                             selectTimeout = 1000;
+    protected final String                        name;
+    protected final Selector                      selector;
+    protected final Executor                      commsExecutor;
+    protected final SocketOptions                 options;
+    protected final LinkedBlockingDeque<Runnable> registers     = new LinkedBlockingDeque<Runnable>();
 
     /**
      * Construct a new channel handler
@@ -89,7 +91,8 @@ public class ChannelHandler {
                     @Override
                     public void uncaughtException(Thread t, Throwable e) {
                         log.log(Level.WARNING,
-                                "Uncaught exception on select handler", e);
+                                String.format("Uncaught exception on select handler",
+                                              name), e);
                     }
                 });
                 return daemon;
@@ -131,28 +134,31 @@ public class ChannelHandler {
     public void connectTo(InetSocketAddress remoteAddress,
                           CommunicationsHandler eventHandler)
                                                              throws IOException {
-        SocketChannel socketChannel = SocketChannel.open();
+        final SocketChannel socketChannel = SocketChannel.open();
+        final SocketChannelHandler handler = new SocketChannelHandler(
+                                                                      eventHandler,
+                                                                      ChannelHandler.this,
+                                                                      socketChannel);
         options.configure(socketChannel.socket());
-        SocketChannelHandler handler = new SocketChannelHandler(eventHandler,
-                                                                this,
-                                                                socketChannel);
         addHandler(handler);
         socketChannel.configureBlocking(false);
         if (socketChannel.connect(remoteAddress)) {
-            wakeup();
-            register(socketChannel, handler, 0);
-            try {
-                commsExecutor.execute(handler.connectHandler());
-            } catch (RejectedExecutionException e) {
-                if (log.isLoggable(Level.INFO)) {
-                    log.log(Level.INFO,
-                            "too busy to execute connection handling");
+            registers.add(new Runnable() {
+                @Override
+                public void run() {
+                    register(socketChannel, handler, 0);
+                    commsExecutor.execute(handler.connectHandler());
                 }
-            }
-            return;
+            });
+        } else {
+            registers.add(new Runnable() {
+                @Override
+                public void run() {
+                    register(socketChannel, handler, SelectionKey.OP_CONNECT);
+                }
+            });
         }
         wakeup();
-        register(socketChannel, handler, SelectionKey.OP_CONNECT);
         return;
     }
 
@@ -253,24 +259,26 @@ public class ChannelHandler {
     void handleConnect(SelectionKey key) {
         key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Handling read");
+            log.finest(String.format("Handling connect [%s]", name));
         }
         SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {
-            log.log(Level.SEVERE, "Unable to finish connection", e);
+            log.log(Level.SEVERE,
+                    String.format("Unable to finish connection [%s]", name), e);
             handler.close();
             return;
         }
         if (log.isLoggable(Level.FINE)) {
-            log.fine("Dispatching connected action");
+            log.fine(String.format("Dispatching connected action [%s]", name));
         }
         try {
             commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "cannot execute connect action", e);
+                log.log(Level.FINEST,
+                        String.format("cannot execute connect action [%s]"), e);
             }
             handler.close();
         }
@@ -279,14 +287,16 @@ public class ChannelHandler {
     void handleRead(SelectionKey key) {
         key.interestOps(key.interestOps() & ~SelectionKey.OP_READ);
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Handling read");
+            log.finest(String.format("Handling read [%s]", name));
         }
         SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
             commsExecutor.execute(handler.readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
-                log.log(Level.INFO, "too busy to execute read handling");
+                log.log(Level.INFO,
+                        String.format("too busy to execute read handling [%s]",
+                                      name));
             }
             handler.close();
         }
@@ -295,14 +305,16 @@ public class ChannelHandler {
     void handleWrite(SelectionKey key) {
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Handling write");
+            log.finest(String.format("Handling write [%s]", name));
         }
         SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
             commsExecutor.execute(handler.writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
-                log.log(Level.INFO, "too busy to execute write handling");
+                log.log(Level.INFO,
+                        String.format("too busy to execute write handling [%s]",
+                                      name));
             }
             handler.close();
         }
@@ -310,16 +322,20 @@ public class ChannelHandler {
 
     SelectionKey register(SocketChannel channel, SocketChannelHandler handler,
                           int operation) {
-        assert !channel.isBlocking() : "Socket has not been set to non blocking mode!";
+        assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
+                                                     name);
         SelectionKey key = null;
         try {
             key = channel.register(selector, operation, handler);
         } catch (NullPointerException e) {
             // apparently the file descriptor can be nulled
-            log.log(Level.FINEST, "anamalous null pointer exception", e);
+            log.log(Level.FINEST,
+                    String.format("anamalous null pointer exception [%s]", name),
+                    e);
         } catch (ClosedChannelException e) {
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "channel has been closed", e);
+                log.log(Level.FINEST,
+                        String.format("channel has been closed [%s]", name), e);
             }
             handler.close();
         }
@@ -328,8 +344,15 @@ public class ChannelHandler {
 
     void select() throws IOException {
         if (log.isLoggable(Level.FINEST)) {
-            log.finest("Selecting");
+            log.finest(String.format("Selecting [%s]", name));
         }
+
+        Runnable register = registers.pollFirst();
+        while (register != null) {
+            register.run();
+            register = registers.pollFirst();
+        }
+
         selector.select(selectTimeout);
 
         // get an iterator over the set of selected keys
@@ -347,7 +370,8 @@ public class ChannelHandler {
                 dispatch(key);
             } catch (CancelledKeyException e) {
                 if (log.isLoggable(Level.FINE)) {
-                    log.log(Level.FINE, format("Cancelled Key: %s", key), e);
+                    log.log(Level.FINE,
+                            format("Cancelled Key: %s [%s]", key, name), e);
                 }
             }
         }
@@ -356,7 +380,9 @@ public class ChannelHandler {
     void selectForRead(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         if (key == null) {
-            log.info(String.format("Key is null for %s" + handler.getChannel()));
+            log.warning(String.format("Key is null for %s [%s]"
+                                                      + handler.getChannel(),
+                                      name));
             return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
@@ -366,7 +392,9 @@ public class ChannelHandler {
     void selectForWrite(SocketChannelHandler handler) {
         SelectionKey key = handler.getChannel().keyFor(selector);
         if (key == null) {
-            log.info(String.format("Key is null for %s" + handler.getChannel()));
+            log.warning(String.format("Key is null for %s [%s]"
+                                                      + handler.getChannel(),
+                                      name));
             return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
@@ -382,19 +410,26 @@ public class ChannelHandler {
                         select();
                     } catch (ClosedSelectorException e) {
                         if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINER, "Channel closed", e);
+                            log.log(Level.FINER,
+                                    String.format("Channel closed [%s]", name),
+                                    e);
                         }
                     } catch (IOException e) {
                         if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINE, "Error when selecting", e);
+                            log.log(Level.FINE,
+                                    String.format("Error when selecting [%s]",
+                                                  name), e);
                         }
                     } catch (CancelledKeyException e) {
                         if (log.isLoggable(Level.FINE)) {
-                            log.log(Level.FINE, "Error when selecting", e);
+                            log.log(Level.FINE,
+                                    String.format("Error when selecting [%s]",
+                                                  name), e);
                         }
                     } catch (Throwable e) {
                         log.log(Level.SEVERE,
-                                "Runtime exception when selecting", e);
+                                String.format("Runtime exception when selecting [%s]",
+                                              name), e);
                     }
                 }
             }
@@ -407,7 +442,8 @@ public class ChannelHandler {
         try {
             selector.close();
         } catch (IOException e) {
-            log.log(Level.INFO, "Error closing selector", e);
+            log.log(Level.INFO,
+                    String.format("Error closing selector [%s]", name), e);
         }
         selectTask.cancel(true);
         selectService.shutdownNow();
@@ -421,8 +457,9 @@ public class ChannelHandler {
         } catch (NullPointerException e) {
             // Bug in JRE
             if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST, "Caught null pointer in selector wakeup",
-                        e);
+                log.log(Level.FINEST,
+                        String.format("Caught null pointer in selector wakeup [%s]",
+                                      name), e);
             }
         }
     }
