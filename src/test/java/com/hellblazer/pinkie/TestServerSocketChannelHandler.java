@@ -251,13 +251,14 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     public void testEndToEnd() throws Exception {
         SocketOptions socketOptions = new SocketOptions();
-        socketOptions.setSend_buffer_size(128);
+        int bufferSize = 1 * 1024;
+        socketOptions.setSend_buffer_size(bufferSize);
         socketOptions.setReceive_buffer_size(128);
         socketOptions.setTimeout(100);
         final SimpleCommHandlerFactory outboundFactory = new SimpleCommHandlerFactory();
         final ServerSocketChannelHandler outboundHandler = new ServerSocketChannelHandler(
                                                                                           "Test write Handler",
-                                                                                          new SocketOptions(),
+                                                                                          socketOptions,
                                                                                           new InetSocketAddress(
                                                                                                                 "127.0.0.1",
                                                                                                                 0),
@@ -265,12 +266,12 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                           outboundFactory);
         outboundHandler.start();
 
-        int testLength = 8192;
+        int testLength = 8 * 1024;
         final ReadHandlerFactory inboundFactory = new ReadHandlerFactory(
                                                                          testLength);
         final ServerSocketChannelHandler inboundHandler = new ServerSocketChannelHandler(
                                                                                          "Test read Handler",
-                                                                                         new SocketOptions(),
+                                                                                         socketOptions,
                                                                                          new InetSocketAddress(
                                                                                                                "127.0.0.1",
                                                                                                                0),
@@ -330,7 +331,7 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return readHandler.reads.size() == 1;
             }
-        }, 4000, 100);
+        }, 60000, 100);
 
         writeHandler.selectForWrite();
         readHandler.selectForRead();
@@ -340,7 +341,7 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return readHandler.reads.size() >= 1;
             }
-        }, 4000, 100);
+        }, 60000, 100);
 
         int j = 0;
         for (byte[] result : readHandler.reads) {

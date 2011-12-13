@@ -58,12 +58,16 @@ public class SocketChannelHandler {
     private volatile SocketChannelHandler previous;
     final ReadHandler                     readHandler  = new ReadHandler();
     final WriteHandler                    writeHandler = new WriteHandler();
+    final Runnable                        selectForRead;
+    final Runnable                        selectForWrite;
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel) {
         this.eventHandler = eventHandler;
         this.handler = handler;
         this.channel = channel;
+        this.selectForRead = handler.selectForRead(this);
+        this.selectForWrite = handler.selectForWrite(this);
     }
 
     /**
@@ -119,14 +123,14 @@ public class SocketChannelHandler {
      * Return the handler and select for read ready
      */
     public void selectForRead() {
-        handler.selectForRead(this);
+        handler.register(selectForRead);
     }
 
     /**
      * Return the handler and select for read ready
      */
     public void selectForWrite() {
-        handler.selectForWrite(this);
+        handler.register(selectForWrite);
     }
 
     @Override

@@ -377,26 +377,9 @@ public class ChannelHandler {
         }
     }
 
-    void selectForRead(SocketChannelHandler handler) {
-        SelectionKey key = handler.getChannel().keyFor(selector);
-        if (key == null) {
-            log.warning(String.format("Key is null for %s [%s]"
-                                                      + handler.getChannel(),
-                                      name));
-            return;
-        }
-        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-    }
-
-    void selectForWrite(SocketChannelHandler handler) {
-        SelectionKey key = handler.getChannel().keyFor(selector);
-        if (key == null) {
-            log.warning(String.format("Key is null for %s [%s]"
-                                                      + handler.getChannel(),
-                                      name));
-            return;
-        }
-        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+    void register(Runnable select) {
+        registers.add(select);
+        wakeup();
     }
 
     void startService() {
@@ -460,5 +443,35 @@ public class ChannelHandler {
                                       name), e);
             }
         }
+    }
+
+    protected Runnable selectForRead(final SocketChannelHandler handler) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                SelectionKey key = handler.getChannel().keyFor(selector);
+                if (key == null) {
+                    log.warning(String.format("Key is null for %s [%s]"
+                                              + handler.getChannel(), name));
+                    return;
+                }
+                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+            }
+        };
+    }
+
+    protected Runnable selectForWrite(final SocketChannelHandler handler) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                SelectionKey key = handler.getChannel().keyFor(selector);
+                if (key == null) {
+                    log.warning(String.format("Key is null for %s [%s]"
+                                              + handler.getChannel(), name));
+                    return;
+                }
+                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            }
+        };
     }
 }
