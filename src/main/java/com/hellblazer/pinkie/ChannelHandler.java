@@ -386,7 +386,6 @@ public class ChannelHandler {
             return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-        wakeup();
     }
 
     void selectForWrite(SocketChannelHandler handler) {
@@ -398,7 +397,6 @@ public class ChannelHandler {
             return;
         }
         key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
-        wakeup();
     }
 
     void startService() {
