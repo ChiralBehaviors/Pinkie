@@ -58,11 +58,11 @@ public class ChannelHandler {
     private final ExecutorService                 selectService;
     private Future<?>                             selectTask;
     private final int                             selectTimeout = 1000;
-    protected final String                        name;
-    protected final Selector                      selector;
     protected final Executor                      commsExecutor;
+    protected final String                        name;
     protected final SocketOptions                 options;
     protected final LinkedBlockingDeque<Runnable> registers     = new LinkedBlockingDeque<Runnable>();
+    protected final Selector                      selector;
 
     /**
      * Construct a new channel handler
@@ -320,6 +320,11 @@ public class ChannelHandler {
         }
     }
 
+    final void register(Runnable select) {
+        registers.add(select);
+        wakeup();
+    }
+
     SelectionKey register(SocketChannel channel, SocketChannelHandler handler,
                           int operation) {
         assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
@@ -377,9 +382,34 @@ public class ChannelHandler {
         }
     }
 
-    void register(Runnable select) {
-        registers.add(select);
-        wakeup();
+    final Runnable selectForRead(final SocketChannelHandler handler) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                SelectionKey key = handler.getChannel().keyFor(selector);
+                if (key == null) {
+                    log.warning(String.format("Key is null for %s [%s]"
+                                              + handler.getChannel(), name));
+                    return;
+                }
+                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+            }
+        };
+    }
+
+    final Runnable selectForWrite(final SocketChannelHandler handler) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                SelectionKey key = handler.getChannel().keyFor(selector);
+                if (key == null) {
+                    log.warning(String.format("Key is null for %s [%s]"
+                                              + handler.getChannel(), name));
+                    return;
+                }
+                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+            }
+        };
     }
 
     void startService() {
@@ -432,7 +462,7 @@ public class ChannelHandler {
         log.info(format("%s is terminated", name));
     }
 
-    void wakeup() {
+    final void wakeup() {
         try {
             selector.wakeup();
         } catch (NullPointerException e) {
@@ -443,35 +473,5 @@ public class ChannelHandler {
                                       name), e);
             }
         }
-    }
-
-    protected Runnable selectForRead(final SocketChannelHandler handler) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                SelectionKey key = handler.getChannel().keyFor(selector);
-                if (key == null) {
-                    log.warning(String.format("Key is null for %s [%s]"
-                                              + handler.getChannel(), name));
-                    return;
-                }
-                key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-            }
-        };
-    }
-
-    protected Runnable selectForWrite(final SocketChannelHandler handler) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                SelectionKey key = handler.getChannel().keyFor(selector);
-                if (key == null) {
-                    log.warning(String.format("Key is null for %s [%s]"
-                                              + handler.getChannel(), name));
-                    return;
-                }
-                key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
-            }
-        };
     }
 }

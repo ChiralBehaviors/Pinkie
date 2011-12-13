@@ -48,26 +48,26 @@ public class SocketChannelHandler {
         }
     }
 
-    private static final Logger           log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
+    private static final Logger   log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
 
-    private final SocketChannel           channel;
-    private CommunicationsHandler         eventHandler;
-    private final ChannelHandler          handler;
-    private volatile SocketChannelHandler next;
-    private final AtomicBoolean           open         = new AtomicBoolean(true);
-    private volatile SocketChannelHandler previous;
-    final ReadHandler                     readHandler  = new ReadHandler();
-    final WriteHandler                    writeHandler = new WriteHandler();
-    final Runnable                        selectForRead;
-    final Runnable                        selectForWrite;
+    private final SocketChannel   channel;
+    private CommunicationsHandler eventHandler;
+    private final ChannelHandler  handler;
+    private SocketChannelHandler  next;
+    private final AtomicBoolean   open         = new AtomicBoolean(true);
+    private SocketChannelHandler  previous;
+    private final Runnable        selectForRead;
+    private final Runnable        selectForWrite;
+    final ReadHandler             readHandler  = new ReadHandler();
+    final WriteHandler            writeHandler = new WriteHandler();
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel) {
         this.eventHandler = eventHandler;
         this.handler = handler;
         this.channel = channel;
-        this.selectForRead = handler.selectForRead(this);
-        this.selectForWrite = handler.selectForWrite(this);
+        selectForRead = handler.selectForRead(this);
+        selectForWrite = handler.selectForWrite(this);
     }
 
     /**
