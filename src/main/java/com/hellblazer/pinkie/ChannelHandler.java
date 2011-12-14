@@ -134,6 +134,8 @@ public class ChannelHandler {
     public void connectTo(InetSocketAddress remoteAddress,
                           CommunicationsHandler eventHandler)
                                                              throws IOException {
+        assert remoteAddress != null : "Remote address cannot be null";
+        assert eventHandler != null : "Handler cannot be null";
         final SocketChannel socketChannel = SocketChannel.open();
         final SocketChannelHandler handler = new SocketChannelHandler(
                                                                       eventHandler,
