@@ -71,15 +71,15 @@ public class ChannelHandler {
      *            - the String name used to mark the selection thread
      * @param socketOptions
      *            - the socket options to configure new sockets
-     * @param commsExec
+     * @param dispatchExec
      *            - the executor service to handle I/O events
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
-                          Executor commsExec) throws IOException {
+                          Executor dispatchExec) throws IOException {
         name = handlerName;
-        selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        this.selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
                 Thread daemon = new Thread(
@@ -99,7 +99,7 @@ public class ChannelHandler {
             }
         });
         selector = Selector.open();
-        commsExecutor = commsExec;
+        commsExecutor = dispatchExec;
         options = socketOptions;
     }
 
@@ -131,7 +131,7 @@ public class ChannelHandler {
      * @param eventHandler
      * @throws IOException
      */
-    public void connectTo(InetSocketAddress remoteAddress,
+    public void connectTo(final InetSocketAddress remoteAddress,
                           CommunicationsHandler eventHandler)
                                                              throws IOException {
         assert remoteAddress != null : "Remote address cannot be null";
@@ -144,22 +144,20 @@ public class ChannelHandler {
         options.configure(socketChannel.socket());
         addHandler(handler);
         socketChannel.configureBlocking(false);
-        if (socketChannel.connect(remoteAddress)) {
-            registers.add(new Runnable() {
-                @Override
-                public void run() {
-                    register(socketChannel, handler, 0);
-                    commsExecutor.execute(handler.connectHandler());
+        registers.add(new Runnable() {
+            @Override
+            public void run() {
+                register(socketChannel, handler, SelectionKey.OP_CONNECT);
+                try {
+                    socketChannel.connect(remoteAddress);
+                } catch (IOException e) {
+                    log.warning(String.format("Cannot connect to %s [%s]",
+                                              remoteAddress, name));
+                    handler.close();
+                    return;
                 }
-            });
-        } else {
-            registers.add(new Runnable() {
-                @Override
-                public void run() {
-                    register(socketChannel, handler, SelectionKey.OP_CONNECT);
-                }
-            });
-        }
+            }
+        });
         wakeup();
         return;
     }
@@ -278,9 +276,10 @@ public class ChannelHandler {
         try {
             commsExecutor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
-            if (log.isLoggable(Level.FINEST)) {
-                log.log(Level.FINEST,
-                        String.format("cannot execute connect action [%s]"), e);
+            if (log.isLoggable(Level.INFO)) {
+                log.log(Level.INFO,
+                        String.format("too busy to execute connect handling [%s]",
+                                      name), e);
             }
             handler.close();
         }
@@ -376,8 +375,8 @@ public class ChannelHandler {
             try {
                 dispatch(key);
             } catch (CancelledKeyException e) {
-                if (log.isLoggable(Level.FINE)) {
-                    log.log(Level.FINE,
+                if (log.isLoggable(Level.FINEST)) {
+                    log.log(Level.FINEST,
                             format("Cancelled Key: %s [%s]", key, name), e);
                 }
             }
@@ -390,8 +389,8 @@ public class ChannelHandler {
             public void run() {
                 SelectionKey key = handler.getChannel().keyFor(selector);
                 if (key == null) {
-                    log.warning(String.format("Key is null for %s [%s]"
-                                              + handler.getChannel(), name));
+                    log.finest(String.format("Key is null for %s [%s]",
+                                             handler.getChannel(), name));
                     return;
                 }
                 key.interestOps(key.interestOps() | SelectionKey.OP_READ);
@@ -405,8 +404,8 @@ public class ChannelHandler {
             public void run() {
                 SelectionKey key = handler.getChannel().keyFor(selector);
                 if (key == null) {
-                    log.warning(String.format("Key is null for %s [%s]"
-                                              + handler.getChannel(), name));
+                    log.finest(String.format("Key is null for %s [%s]",
+                                             handler.getChannel(), name));
                     return;
                 }
                 key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);

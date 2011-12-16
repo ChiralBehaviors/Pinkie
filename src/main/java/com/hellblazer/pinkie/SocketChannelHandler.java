@@ -75,9 +75,9 @@ public class SocketChannelHandler {
      */
     public void close() {
         if (open.compareAndSet(true, false)) {
-            if (log.isLoggable(Level.FINE)) {
+            if (log.isLoggable(Level.FINEST)) {
                 Exception e = new Exception("Socket close trace");
-                log.log(Level.FINE,
+                log.log(Level.FINEST,
                         format("Closing connection to %s", channel), e);
             }
             eventHandler.closing();
