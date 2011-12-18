@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class SimpleCommHandler implements CommunicationsHandler {
 
     final AtomicBoolean                         accepted  = new AtomicBoolean();
+    final AtomicBoolean                         closed    = new AtomicBoolean();
     final AtomicBoolean                         connected = new AtomicBoolean();
     final AtomicReference<SocketChannelHandler> handler   = new AtomicReference<SocketChannelHandler>();
     final List<byte[]>                          reads     = new ArrayList<byte[]>();
@@ -39,6 +40,7 @@ public class SimpleCommHandler implements CommunicationsHandler {
 
     @Override
     public void closing() {
+        closed.set(true);
     }
 
     @Override
@@ -58,13 +60,16 @@ public class SimpleCommHandler implements CommunicationsHandler {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ByteBuffer buffer = ByteBuffer.wrap(new byte[1024]);
-            for (int read = handler.get().getChannel().read(buffer); read != 0; read = handler.get().getChannel().read(buffer)) {
-                buffer.flip();
-                byte[] b = new byte[read];
-                buffer.get(b, 0, read);
-                baos.write(b);
-                buffer.flip();
+            int read = handler.get().getChannel().read(buffer);
+            if (read == -1) {
+                handler.get().close();
+                return;
             }
+            buffer.flip();
+            byte[] b = new byte[read];
+            buffer.get(b, 0, read);
+            baos.write(b);
+            buffer.flip();
             reads.add(baos.toByteArray());
         } catch (Throwable e) {
             throw new IllegalStateException(e);

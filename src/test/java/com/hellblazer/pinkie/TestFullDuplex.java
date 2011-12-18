@@ -15,7 +15,7 @@
  */
 package com.hellblazer.pinkie;
 
-import static junit.framework.Assert.fail;
+import static com.hellblazer.pinkie.Utils.waitFor;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -26,15 +26,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
+import com.hellblazer.pinkie.Utils.Condition;
+
 /**
  * 
  * @author hhildebrand
  * 
  */
 public class TestFullDuplex {
-    private static interface Condition {
-        boolean value();
-    }
 
     private static class Handler implements CommunicationsHandler {
         volatile SocketChannelHandler handler;
@@ -130,8 +129,6 @@ public class TestFullDuplex {
 
         int targetSize = 4 * 1024 * 1024;
 
-        System.out.println("Target: " + targetSize);
-
         byte[] inputA = new byte[targetSize];
         for (int i = 0; i < targetSize; i++) {
             inputA[i] = 'a';
@@ -200,16 +197,5 @@ public class TestFullDuplex {
             }
         }, 100000, 100);
 
-    }
-
-    void waitFor(String reason, Condition condition, long timeout, long interval)
-                                                                                 throws InterruptedException {
-        long target = System.currentTimeMillis() + timeout;
-        while (!condition.value()) {
-            if (target < System.currentTimeMillis()) {
-                fail(reason);
-            }
-            Thread.sleep(interval);
-        }
     }
 }

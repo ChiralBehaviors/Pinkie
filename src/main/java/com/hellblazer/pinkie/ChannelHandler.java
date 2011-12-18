@@ -265,7 +265,7 @@ public class ChannelHandler {
         try {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {
-            log.log(Level.SEVERE,
+            log.log(Level.INFO,
                     String.format("Unable to finish connection [%s]", name), e);
             handler.close();
             return;

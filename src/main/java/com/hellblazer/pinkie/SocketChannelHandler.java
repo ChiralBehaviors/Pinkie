@@ -90,6 +90,7 @@ public class SocketChannelHandler {
                             e);
                 }
             }
+            handler.wakeup();
         }
     }
 

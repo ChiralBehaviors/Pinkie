@@ -15,6 +15,8 @@
  */
 package com.hellblazer.pinkie;
 
+import static com.hellblazer.pinkie.Utils.waitFor;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -29,17 +31,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import junit.framework.TestCase;
 
+import org.junit.Test;
+
+import com.hellblazer.pinkie.Utils.Condition;
+
 /**
  * 
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
  */
 public class TestServerSocketChannelHandler extends TestCase {
-
-    private static interface Condition {
-        boolean value();
-    }
-
     public void testAccept() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
         final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
@@ -352,19 +353,8 @@ public class TestServerSocketChannelHandler extends TestCase {
         }
     }
 
-    void waitFor(String reason, Condition condition, long timeout, long interval)
-                                                                                 throws InterruptedException {
-        long target = System.currentTimeMillis() + timeout;
-        while (!condition.value()) {
-            if (target < System.currentTimeMillis()) {
-                fail(reason);
-            }
-            Thread.sleep(interval);
-        }
-    }
-
     private static class ReadHandlerFactory implements
-                    CommunicationsHandlerFactory {
+            CommunicationsHandlerFactory {
         final int         readLength;
         List<ReadHandler> handlers = new ArrayList<ReadHandler>();
 
@@ -440,5 +430,48 @@ public class TestServerSocketChannelHandler extends TestCase {
 
         }
 
+    }
+
+    @Test
+    public void testCloseBehavior() throws Exception {
+        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        SocketOptions socketOptions = new SocketOptions();
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  socketOptions,
+                                                                                  new InetSocketAddress(
+                                                                                                        "127.0.0.1",
+                                                                                                        0),
+                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  factory);
+        handler.start();
+        InetSocketAddress endpont = handler.getLocalAddress();
+        SocketChannel outbound = SocketChannel.open();
+        outbound.configureBlocking(true);
+        outbound.connect(endpont);
+        assertTrue(outbound.finishConnect());
+        waitFor("No handler was created", new Condition() {
+            @Override
+            public boolean value() {
+                return factory.handlers.size() >= 1;
+            }
+        }, 2000, 100);
+        final SimpleCommHandler scHandler = factory.handlers.get(0);
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.accepted.get();
+            }
+        }, 2000, 100);
+        assertEquals(1, factory.handlers.size());
+        scHandler.selectForRead();
+
+        outbound.close();
+        waitFor("Handler was not closed", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.closed.get();
+            }
+        }, 1000, 100);
     }
 }
