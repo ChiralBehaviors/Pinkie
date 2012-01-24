@@ -140,7 +140,7 @@ public class TestFullDuplex {
                                                                              new InetSocketAddress(
                                                                                                    "127.0.0.1",
                                                                                                    0),
-                                                                             Executors.newFixedThreadPool(3),
+                                                                             Executors.newCachedThreadPool(),
                                                                              factoryA);
 
         byte[] inputB = new byte[targetSize];

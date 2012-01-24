@@ -49,7 +49,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
-                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  Executors.newCachedThreadPool(),
                                                                                   factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
@@ -81,7 +81,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
-                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  Executors.newCachedThreadPool(),
                                                                                   factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
@@ -158,7 +158,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
-                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  Executors.newCachedThreadPool(),
                                                                                   factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
@@ -263,7 +263,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                           new InetSocketAddress(
                                                                                                                 "127.0.0.1",
                                                                                                                 0),
-                                                                                          Executors.newSingleThreadExecutor(),
+                                                                                          Executors.newCachedThreadPool(),
                                                                                           outboundFactory);
         outboundHandler.start();
 
@@ -276,7 +276,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                          new InetSocketAddress(
                                                                                                                "127.0.0.1",
                                                                                                                0),
-                                                                                         Executors.newSingleThreadExecutor(),
+                                                                                         Executors.newCachedThreadPool(),
                                                                                          inboundFactory);
         InetSocketAddress endpoint = inboundHandler.getLocalAddress();
 
@@ -442,7 +442,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
-                                                                                  Executors.newSingleThreadExecutor(),
+                                                                                  Executors.newCachedThreadPool(),
                                                                                   factory);
         handler.start();
         InetSocketAddress endpont = handler.getLocalAddress();
