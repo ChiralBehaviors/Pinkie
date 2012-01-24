@@ -24,7 +24,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -54,7 +54,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      Executor commsExec,
+                                      ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
         super(handlerName, socketOptions, commsExec);
@@ -80,7 +80,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
-                                      Executor commsExec,
+                                      ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
@@ -129,7 +129,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         addHandler(handler);
         newKey.attach(handler);
         try {
-            commsExecutor.execute(handler.acceptHandler());
+            executor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,

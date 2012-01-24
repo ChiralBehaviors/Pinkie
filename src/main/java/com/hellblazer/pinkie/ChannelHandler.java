@@ -28,13 +28,10 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -55,10 +52,9 @@ public class ChannelHandler {
     private final ReentrantLock                   handlersLock  = new ReentrantLock();
     private volatile SocketChannelHandler         openHandlers;
     private final AtomicBoolean                   run           = new AtomicBoolean();
-    private final ExecutorService                 selectService;
     private Future<?>                             selectTask;
     private final int                             selectTimeout = 1000;
-    protected final Executor                      commsExecutor;
+    protected final ExecutorService               executor;
     protected final String                        name;
     protected final SocketOptions                 options;
     protected final LinkedBlockingDeque<Runnable> registers     = new LinkedBlockingDeque<Runnable>();
@@ -71,35 +67,16 @@ public class ChannelHandler {
      *            - the String name used to mark the selection thread
      * @param socketOptions
      *            - the socket options to configure new sockets
-     * @param dispatchExec
-     *            - the executor service to handle I/O events
+     * @param executor
+     *            - the executor service to handle I/O and selection events
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
-                          Executor dispatchExec) throws IOException {
+                          ExecutorService executor) throws IOException {
         name = handlerName;
-        this.selectService = Executors.newSingleThreadExecutor(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread daemon = new Thread(
-                                           r,
-                                           format("Server channel handler select for %s",
-                                                  name));
-                daemon.setDaemon(true);
-                daemon.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-                    @Override
-                    public void uncaughtException(Thread t, Throwable e) {
-                        log.log(Level.WARNING,
-                                String.format("Uncaught exception on select handler",
-                                              name), e);
-                    }
-                });
-                return daemon;
-            }
-        });
         selector = Selector.open();
-        commsExecutor = dispatchExec;
+        this.executor = executor;
         options = socketOptions;
     }
 
@@ -275,7 +252,7 @@ public class ChannelHandler {
             log.fine(String.format("Dispatching connected action [%s]", name));
         }
         try {
-            commsExecutor.execute(handler.connectHandler());
+            executor.execute(handler.connectHandler());
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
@@ -293,7 +270,7 @@ public class ChannelHandler {
         }
         SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
-            commsExecutor.execute(handler.readHandler);
+            executor.execute(handler.readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
@@ -311,7 +288,7 @@ public class ChannelHandler {
         }
         SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
         try {
-            commsExecutor.execute(handler.writeHandler);
+            executor.execute(handler.writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
@@ -415,7 +392,7 @@ public class ChannelHandler {
     }
 
     void startService() {
-        selectTask = selectService.submit(new Runnable() {
+        selectTask = executor.submit(new Runnable() {
             @Override
             public void run() {
                 while (run.get()) {
@@ -459,7 +436,6 @@ public class ChannelHandler {
                     String.format("Error closing selector [%s]", name), e);
         }
         selectTask.cancel(true);
-        selectService.shutdownNow();
         closeOpenHandlers();
         log.info(format("%s is terminated", name));
     }
