@@ -131,10 +131,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         try {
             executor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
-            if (log.isLoggable(Level.INFO)) {
-                log.log(Level.INFO,
-                        String.format("too busy to execute accept handling [%s]",
-                                      name));
+            if (log.isLoggable(Level.WARNING)) {
+                log.log(Level.WARNING,
+                        String.format("too busy to execute accept handling [%s] of [%s]",
+                                      name, handler.getChannel()));
             }
             handler.close();
         }

@@ -128,8 +128,9 @@ public class ChannelHandler {
                 try {
                     socketChannel.connect(remoteAddress);
                 } catch (IOException e) {
-                    log.warning(String.format("Cannot connect to %s [%s]",
-                                              remoteAddress, name));
+                    log.log(Level.WARNING,
+                            String.format("Cannot connect to %s [%s]",
+                                          remoteAddress, name), e);
                     handler.close();
                     return;
                 }
@@ -243,8 +244,8 @@ public class ChannelHandler {
             ((SocketChannel) key.channel()).finishConnect();
         } catch (IOException e) {
             log.log(Level.INFO,
-                    String.format("Unable to finish connection %s [%s]",
-                                  handler.getChannel(), name), e);
+                    String.format("Unable to finish connection %s [%s] error: %s",
+                                  handler.getChannel(), name, e));
             handler.close();
             return;
         }
@@ -256,8 +257,8 @@ public class ChannelHandler {
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
-                        String.format("too busy to execute connect handling [%s]",
-                                      name), e);
+                        String.format("too busy to execute connect handling [%s] of [%s]",
+                                      name, handler.getChannel()));
             }
             handler.close();
         }
@@ -274,10 +275,10 @@ public class ChannelHandler {
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
-                        String.format("too busy to execute read handling [%s]",
-                                      name));
+                        String.format("too busy to execute read handling [%s], reselecting [%s]",
+                                      name, handler.getChannel()));
             }
-            handler.close();
+            handler.selectForRead();
         }
     }
 
@@ -292,10 +293,10 @@ public class ChannelHandler {
         } catch (RejectedExecutionException e) {
             if (log.isLoggable(Level.INFO)) {
                 log.log(Level.INFO,
-                        String.format("too busy to execute write handling [%s]",
-                                      name));
+                        String.format("too busy to execute write handling [%s], reselecting [%s]",
+                                      name, handler.getChannel()));
             }
-            handler.close();
+            handler.selectForWrite();
         }
     }
 
