@@ -60,10 +60,12 @@ public class SocketOptions {
         if (keep_alive) {
             socket.setKeepAlive(true);
         }
-        if (linger > 0) {
+        if (linger < 0) {
+            socket.setSoLinger(false, linger);
+        } else {
             socket.setSoLinger(true, linger);
         }
-        if (timeout > 0) {
+        if (timeout >= 0) {
             socket.setSoTimeout(timeout);
         }
         if (receive_buffer_size > 0) {
@@ -72,7 +74,7 @@ public class SocketOptions {
         if (send_buffer_size > 0) {
             socket.setSendBufferSize(send_buffer_size);
         }
-        if (traffic_class > 0) {
+        if (traffic_class >= 0) {
             socket.setTrafficClass(traffic_class);
         }
     }
