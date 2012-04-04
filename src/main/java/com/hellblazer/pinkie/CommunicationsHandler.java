@@ -15,7 +15,6 @@
  */
 package com.hellblazer.pinkie;
 
-
 /**
  * The interface that a communications handler implements to handle the
  * read/write/accept/connect events on a socket channel.
@@ -53,16 +52,16 @@ package com.hellblazer.pinkie;
 public interface CommunicationsHandler {
 
     /**
-     * The channel is closing, perform any clean up necessary
-     */
-    void closing();
-
-    /**
      * Handle the accept of the socket. The SocketChannel
      * 
      * @param handler
      */
     void accept(SocketChannelHandler handler);
+
+    /**
+     * The channel is closing, perform any clean up necessary
+     */
+    void closing();
 
     /**
      * Handle the connection of the outbound socket

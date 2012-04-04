@@ -196,6 +196,9 @@ public class TestFullDuplex {
                 return acceptor.readFinished.get();
             }
         }, 100000, 100);
+        
+        handlerA.terminate();
+        handlerB.terminate();
 
     }
 }

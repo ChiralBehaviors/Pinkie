@@ -41,6 +41,85 @@ import com.hellblazer.pinkie.Utils.Condition;
  * 
  */
 public class TestServerSocketChannelHandler extends TestCase {
+    private static class ReadHandler implements CommunicationsHandler {
+        SocketChannelHandler handler;
+        List<byte[]>         reads    = new CopyOnWriteArrayList<byte[]>();
+        final ByteBuffer     read;
+        final int            readLength;
+        final AtomicBoolean  accepted = new AtomicBoolean();
+
+        public ReadHandler(int readLength) {
+            read = ByteBuffer.allocate(readLength);
+            this.readLength = readLength;
+        }
+
+        @Override
+        public void accept(SocketChannelHandler handler) {
+            this.handler = handler;
+            accepted.set(true);
+        }
+
+        @Override
+        public void closing() {
+            // TODO Auto-generated method stub
+
+        }
+
+        @Override
+        public void connect(SocketChannelHandler handler) {
+            // TODO Auto-generated method stub
+
+        }
+
+        @Override
+        public void readReady() {
+            try {
+                handler.getChannel().read(read);
+            } catch (IOException e) {
+                throw new IllegalStateException();
+            }
+            if (!read.hasRemaining()) {
+                byte[] buf = new byte[readLength];
+                read.flip();
+                read.get(buf);
+                reads.add(buf);
+                read.clear();
+            } else {
+                handler.selectForRead();
+            }
+        }
+
+        public void selectForRead() {
+            handler.selectForRead();
+        }
+
+        @Override
+        public void writeReady() {
+            // TODO Auto-generated method stub
+
+        }
+
+    }
+
+    private static class ReadHandlerFactory implements
+            CommunicationsHandlerFactory {
+        final int         readLength;
+        List<ReadHandler> handlers = new ArrayList<ReadHandler>();
+
+        public ReadHandlerFactory(int readLength) {
+            super();
+            this.readLength = readLength;
+        }
+
+        @Override
+        public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
+            ReadHandler readHandler = new ReadHandler(readLength);
+            handlers.add(readHandler);
+            return readHandler;
+        }
+
+    }
+
     public void testAccept() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
         final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
@@ -71,13 +150,16 @@ public class TestServerSocketChannelHandler extends TestCase {
             }
         }, 2000, 100);
         assertEquals(1, factory.handlers.size());
+        handler.terminate();
     }
 
-    public void testRead() throws Exception {
+    @Test
+    public void testCloseBehavior() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        SocketOptions socketOptions = new SocketOptions();
         final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
                                                                                   "Test Handler",
-                                                                                  new SocketOptions(),
+                                                                                  socketOptions,
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
@@ -88,7 +170,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         SocketChannel outbound = SocketChannel.open();
         outbound.configureBlocking(true);
         outbound.connect(endpont);
-        outbound.finishConnect();
+        assertTrue(outbound.finishConnect());
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
@@ -102,152 +184,17 @@ public class TestServerSocketChannelHandler extends TestCase {
                 return scHandler.accepted.get();
             }
         }, 2000, 100);
+        assertEquals(1, factory.handlers.size());
         scHandler.selectForRead();
-        ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
-        byte[] src = new byte[512];
-        Arrays.fill(src, (byte) 6);
-        buf.put(src);
-        buf.flip();
-        int written = 0;
-        for (int out = outbound.write(buf); written + out == src.length; written += out) {
-            ;
-        }
-        waitFor("No read was recorded", new Condition() {
+
+        outbound.close();
+        waitFor("Handler was not closed", new Condition() {
             @Override
             public boolean value() {
-                return scHandler.reads.size() >= 1;
+                return scHandler.closed.get();
             }
-        }, 2000, 100);
-        assertEquals(1, scHandler.reads.size());
-        assertEquals(src.length, scHandler.reads.get(0).length);
-        for (int i = 0; i < src.length; i++) {
-            assertEquals(src[i], scHandler.reads.get(0)[i]);
-        }
-
-        buf = ByteBuffer.wrap(new byte[512]);
-        src = new byte[512];
-        Arrays.fill(src, (byte) 12);
-        buf.put(src);
-        buf.flip();
-        written = 0;
-        for (int out = outbound.write(buf); written + out == src.length; written += out) {
-            ;
-        }
-        waitFor("No further read was recorded", new Condition() {
-            @Override
-            public boolean value() {
-                return scHandler.reads.size() >= 2;
-            }
-        }, 2000, 100);
-        assertEquals(2, scHandler.reads.size());
-        assertEquals(src.length, scHandler.reads.get(1).length);
-        for (int i = 0; i < src.length; i++) {
-            assertEquals(src[i], scHandler.reads.get(1)[i]);
-        }
-    }
-
-    public void testWrite() throws Exception {
-        SocketOptions socketOptions = new SocketOptions();
-        socketOptions.setSend_buffer_size(128);
-        socketOptions.setReceive_buffer_size(128);
-        socketOptions.setTimeout(100);
-        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
-                                                                                  "Test Handler",
-                                                                                  new SocketOptions(),
-                                                                                  new InetSocketAddress(
-                                                                                                        "127.0.0.1",
-                                                                                                        0),
-                                                                                  Executors.newCachedThreadPool(),
-                                                                                  factory);
-        handler.start();
-        InetSocketAddress endpont = handler.getLocalAddress();
-        final SocketChannel outbound = SocketChannel.open();
-        socketOptions.configure(outbound.socket());
-        outbound.configureBlocking(true);
-        outbound.connect(endpont);
-        outbound.finishConnect();
-        waitFor("No handler was created", new Condition() {
-            @Override
-            public boolean value() {
-                return factory.handlers.size() >= 1;
-            }
-        }, 2000, 100);
-        outbound.configureBlocking(true);
-        final SimpleCommHandler scHandler = factory.handlers.get(0);
-        waitFor("Handler was not accepted", new Condition() {
-            @Override
-            public boolean value() {
-                return scHandler.accepted.get();
-            }
-        }, 2000, 100);
-        scHandler.selectForWrite();
-        final byte[][] src = new byte[2][];
-
-        ByteBuffer buf = ByteBuffer.wrap(new byte[8192]);
-        src[0] = new byte[8192];
-        Arrays.fill(src[0], (byte) 6);
-        buf.put(src[0]);
-        buf.flip();
-        scHandler.writes.add(buf);
-
-        int testLength = 8192;
-        buf = ByteBuffer.wrap(new byte[testLength]);
-        src[1] = new byte[testLength];
-        Arrays.fill(src[1], (byte) 12);
-        buf.put(src[1]);
-        buf.flip();
-        scHandler.writes.add(buf);
-
-        scHandler.selectForWrite();
-
-        final ByteArrayOutputStream testBuf = new ByteArrayOutputStream();
-        final ByteBuffer readBuf = ByteBuffer.wrap(new byte[512]);
-        readBuf.clear();
-        waitFor("Write was not completed", new Condition() {
-            @Override
-            public boolean value() {
-                try {
-                    int read = outbound.read(readBuf);
-                    byte[] anotherBuf = new byte[read];
-                    readBuf.flip();
-                    readBuf.get(anotherBuf);
-                    testBuf.write(anotherBuf);
-                    readBuf.clear();
-                } catch (IOException e) {
-                    fail("Exception during read: " + e.toString());
-                }
-                return src[0].length == testBuf.size();
-            }
-        }, 4000, 100);
-        byte[] testArray = testBuf.toByteArray();
-        for (int i = 0; i < src[0].length; i++) {
-            assertEquals(src[0][i], testArray[i]);
-        }
-
-        scHandler.selectForWrite();
-        testBuf.reset();
-        readBuf.clear();
-        waitFor("Write was not completed", new Condition() {
-            @Override
-            public boolean value() {
-                try {
-                    int read = outbound.read(readBuf);
-                    byte[] anotherBuf = new byte[read];
-                    readBuf.flip();
-                    readBuf.get(anotherBuf);
-                    testBuf.write(anotherBuf);
-                    readBuf.clear();
-                } catch (IOException e) {
-                    fail("Exception during read: " + e.toString());
-                }
-                return src[0].length == testBuf.size();
-            }
-        }, 4000, 100);
-        testArray = testBuf.toByteArray();
-        for (int i = 0; i < src[1].length; i++) {
-            assertEquals(src[1][i], testArray[i]);
-        }
+        }, 1000, 100);
+        handler.terminate();
     }
 
     public void testEndToEnd() throws Exception {
@@ -351,94 +298,15 @@ public class TestServerSocketChannelHandler extends TestCase {
             }
             j++;
         }
+        inboundHandler.terminate();
+        outboundHandler.terminate();
     }
 
-    private static class ReadHandlerFactory implements
-            CommunicationsHandlerFactory {
-        final int         readLength;
-        List<ReadHandler> handlers = new ArrayList<ReadHandler>();
-
-        public ReadHandlerFactory(int readLength) {
-            super();
-            this.readLength = readLength;
-        }
-
-        @Override
-        public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
-            ReadHandler readHandler = new ReadHandler(readLength);
-            handlers.add(readHandler);
-            return readHandler;
-        }
-
-    }
-
-    private static class ReadHandler implements CommunicationsHandler {
-        SocketChannelHandler handler;
-        List<byte[]>         reads    = new CopyOnWriteArrayList<byte[]>();
-        final ByteBuffer     read;
-        final int            readLength;
-        final AtomicBoolean  accepted = new AtomicBoolean();
-
-        public ReadHandler(int readLength) {
-            read = ByteBuffer.allocate(readLength);
-            this.readLength = readLength;
-        }
-
-        public void selectForRead() {
-            handler.selectForRead();
-        }
-
-        @Override
-        public void closing() {
-            // TODO Auto-generated method stub
-
-        }
-
-        @Override
-        public void accept(SocketChannelHandler handler) {
-            this.handler = handler;
-            accepted.set(true);
-        }
-
-        @Override
-        public void connect(SocketChannelHandler handler) {
-            // TODO Auto-generated method stub
-
-        }
-
-        @Override
-        public void readReady() {
-            try {
-                handler.getChannel().read(read);
-            } catch (IOException e) {
-                throw new IllegalStateException();
-            }
-            if (!read.hasRemaining()) {
-                byte[] buf = new byte[readLength];
-                read.flip();
-                read.get(buf);
-                reads.add(buf);
-                read.clear();
-            } else {
-                handler.selectForRead();
-            }
-        }
-
-        @Override
-        public void writeReady() {
-            // TODO Auto-generated method stub
-
-        }
-
-    }
-
-    @Test
-    public void testCloseBehavior() throws Exception {
+    public void testRead() throws Exception {
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
-        SocketOptions socketOptions = new SocketOptions();
         final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
                                                                                   "Test Handler",
-                                                                                  socketOptions,
+                                                                                  new SocketOptions(),
                                                                                   new InetSocketAddress(
                                                                                                         "127.0.0.1",
                                                                                                         0),
@@ -449,7 +317,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         SocketChannel outbound = SocketChannel.open();
         outbound.configureBlocking(true);
         outbound.connect(endpont);
-        assertTrue(outbound.finishConnect());
+        outbound.finishConnect();
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
@@ -463,15 +331,156 @@ public class TestServerSocketChannelHandler extends TestCase {
                 return scHandler.accepted.get();
             }
         }, 2000, 100);
-        assertEquals(1, factory.handlers.size());
         scHandler.selectForRead();
-
-        outbound.close();
-        waitFor("Handler was not closed", new Condition() {
+        ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
+        byte[] src = new byte[512];
+        Arrays.fill(src, (byte) 6);
+        buf.put(src);
+        buf.flip();
+        int written = 0;
+        for (int out = outbound.write(buf); written + out == src.length; written += out) {
+            ;
+        }
+        waitFor("No read was recorded", new Condition() {
             @Override
             public boolean value() {
-                return scHandler.closed.get();
+                return scHandler.reads.size() >= 1;
             }
-        }, 1000, 100);
+        }, 2000, 100);
+        assertEquals(1, scHandler.reads.size());
+        assertEquals(src.length, scHandler.reads.get(0).length);
+        for (int i = 0; i < src.length; i++) {
+            assertEquals(src[i], scHandler.reads.get(0)[i]);
+        }
+
+        buf = ByteBuffer.wrap(new byte[512]);
+        src = new byte[512];
+        Arrays.fill(src, (byte) 12);
+        buf.put(src);
+        buf.flip();
+        written = 0;
+        for (int out = outbound.write(buf); written + out == src.length; written += out) {
+            ;
+        }
+        waitFor("No further read was recorded", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.reads.size() >= 2;
+            }
+        }, 2000, 100);
+        assertEquals(2, scHandler.reads.size());
+        assertEquals(src.length, scHandler.reads.get(1).length);
+        for (int i = 0; i < src.length; i++) {
+            assertEquals(src[i], scHandler.reads.get(1)[i]);
+        }
+        handler.terminate();
+    }
+
+    public void testWrite() throws Exception {
+        SocketOptions socketOptions = new SocketOptions();
+        socketOptions.setSend_buffer_size(128);
+        socketOptions.setReceive_buffer_size(128);
+        socketOptions.setTimeout(100);
+        final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
+                                                                                  "Test Handler",
+                                                                                  new SocketOptions(),
+                                                                                  new InetSocketAddress(
+                                                                                                        "127.0.0.1",
+                                                                                                        0),
+                                                                                  Executors.newCachedThreadPool(),
+                                                                                  factory);
+        handler.start();
+        InetSocketAddress endpont = handler.getLocalAddress();
+        final SocketChannel inbound = SocketChannel.open();
+        socketOptions.configure(inbound.socket());
+        inbound.configureBlocking(false);
+        inbound.connect(endpont);
+        inbound.finishConnect();
+        waitFor("No handler was created", new Condition() {
+            @Override
+            public boolean value() {
+                return factory.handlers.size() >= 1;
+            }
+        }, 4000, 100); 
+        final SimpleCommHandler scHandler = factory.handlers.get(0);
+        waitFor("Handler was not accepted", new Condition() {
+            @Override
+            public boolean value() {
+                return scHandler.accepted.get();
+            }
+        }, 2000, 100);
+        scHandler.selectForWrite();
+        final byte[][] src = new byte[2][];
+
+        ByteBuffer buf = ByteBuffer.wrap(new byte[8192]);
+        src[0] = new byte[8192];
+        Arrays.fill(src[0], (byte) 6);
+        buf.put(src[0]);
+        buf.flip();
+        scHandler.writes.add(buf);
+
+        int testLength = 8192;
+        buf = ByteBuffer.wrap(new byte[testLength]);
+        src[1] = new byte[testLength];
+        Arrays.fill(src[1], (byte) 12);
+        buf.put(src[1]);
+        buf.flip();
+        scHandler.writes.add(buf);
+
+        scHandler.selectForWrite();
+
+        final ByteArrayOutputStream testBuf = new ByteArrayOutputStream();
+        final ByteBuffer readBuf = ByteBuffer.wrap(new byte[512]);
+        readBuf.clear();
+        waitFor("Write was not completed", new Condition() {
+            @Override
+            public boolean value() {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    return false;
+                }
+                try {
+                    int read = inbound.read(readBuf);
+                    byte[] anotherBuf = new byte[read];
+                    readBuf.flip();
+                    readBuf.get(anotherBuf);
+                    testBuf.write(anotherBuf);
+                    readBuf.clear();
+                } catch (IOException e) {
+                    fail("Exception during read: " + e.toString());
+                }
+                return src[0].length == testBuf.size();
+            }
+        }, 4000, 100);
+        byte[] testArray = testBuf.toByteArray();
+        for (int i = 0; i < src[0].length; i++) {
+            assertEquals(src[0][i], testArray[i]);
+        }
+
+        scHandler.selectForWrite();
+        testBuf.reset();
+        readBuf.clear();
+        waitFor("Write was not completed", new Condition() {
+            @Override
+            public boolean value() {
+                try {
+                    int read = inbound.read(readBuf);
+                    byte[] anotherBuf = new byte[read];
+                    readBuf.flip();
+                    readBuf.get(anotherBuf);
+                    testBuf.write(anotherBuf);
+                    readBuf.clear();
+                } catch (IOException e) {
+                    fail("Exception during read: " + e.toString());
+                }
+                return src[0].length == testBuf.size();
+            }
+        }, 4000, 100);
+        testArray = testBuf.toByteArray();
+        for (int i = 0; i < src[1].length; i++) {
+            assertEquals(src[1][i], testArray[i]);
+        }
     }
 }

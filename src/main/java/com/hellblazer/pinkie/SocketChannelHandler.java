@@ -21,8 +21,9 @@ import java.io.IOException;
 import java.net.Socket;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The handler for socket channels. This class provides the bridge to interact
@@ -48,7 +49,7 @@ public class SocketChannelHandler {
         }
     }
 
-    private static final Logger   log          = Logger.getLogger(SocketChannelHandler.class.getCanonicalName());
+    private static final Logger   log          = LoggerFactory.getLogger(SocketChannelHandler.class);
 
     private final SocketChannel   channel;
     private CommunicationsHandler eventHandler;
@@ -75,19 +76,17 @@ public class SocketChannelHandler {
      */
     public void close() {
         if (open.compareAndSet(true, false)) {
-            if (log.isLoggable(Level.FINEST)) {
+            if (log.isTraceEnabled()) {
                 Exception e = new Exception("Socket close trace");
-                log.log(Level.FINEST,
-                        format("Closing connection to %s", channel), e);
+                log.trace(format("Closing connection to %s", channel), e);
             }
             eventHandler.closing();
             try {
                 channel.close();
             } catch (IOException e) {
-                if (log.isLoggable(Level.FINEST)) {
-                    log.log(Level.FINEST,
-                            String.format("Error closing channel %s", channel),
-                            e);
+                if (log.isTraceEnabled()) {
+                    log.trace(String.format("Error closing channel %s", channel),
+                              e);
                 }
             }
             handler.wakeup();

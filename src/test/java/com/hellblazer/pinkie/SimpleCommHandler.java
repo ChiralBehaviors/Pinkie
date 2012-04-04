@@ -39,14 +39,14 @@ public class SimpleCommHandler implements CommunicationsHandler {
     final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<ByteBuffer>();
 
     @Override
-    public void closing() {
-        closed.set(true);
-    }
-
-    @Override
     public void accept(SocketChannelHandler handler) {
         this.handler.set(handler);
         accepted.set(true);
+    }
+
+    @Override
+    public void closing() {
+        closed.set(true);
     }
 
     @Override
@@ -77,6 +77,14 @@ public class SimpleCommHandler implements CommunicationsHandler {
         handler.get().selectForRead();
     }
 
+    public void selectForRead() {
+        handler.get().selectForRead();
+    }
+
+    public void selectForWrite() {
+        handler.get().selectForWrite();
+    }
+
     @Override
     public void writeReady() {
         if (writes.size() == 0) {
@@ -93,13 +101,5 @@ public class SimpleCommHandler implements CommunicationsHandler {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-    }
-
-    public void selectForRead() {
-        handler.get().selectForRead();
-    }
-
-    public void selectForWrite() {
-        handler.get().selectForWrite();
     }
 }

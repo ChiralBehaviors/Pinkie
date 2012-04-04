@@ -26,8 +26,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 
@@ -36,7 +37,7 @@ import java.util.logging.Logger;
  */
 public class ServerSocketChannelHandler extends ChannelHandler {
 
-    private static Logger log = Logger.getLogger(ServerSocketChannelHandler.class.getCanonicalName());
+    private static Logger log = LoggerFactory.getLogger(ServerSocketChannelHandler.class);
 
     public static ServerSocketChannel bind(SocketOptions options,
                                            InetSocketAddress endpointAddress)
@@ -69,9 +70,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                     log.info(String.format("Server socket registered for accept [%s]",
                                            name));
                 } catch (ClosedChannelException e) {
-                    log.log(Level.SEVERE,
-                            String.format("Unable to register accept on %s [%s]",
-                                          server, name), e);
+                    log.error(String.format("Unable to register accept on %s [%s]",
+                                            server, name), e);
                 }
             }
         });
@@ -107,16 +107,16 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     }
 
     void handleAccept(SelectionKey key) throws IOException {
-        if (log.isLoggable(Level.FINEST)) {
-            log.finest(String.format("Handling accept [%s]", name));
+        if (log.isTraceEnabled()) {
+            log.trace(String.format("Handling accept [%s]", name));
         }
         ServerSocketChannel server = (ServerSocketChannel) key.channel();
         SocketChannel accepted = server.accept();
         options.configure(accepted.socket());
         accepted.configureBlocking(false);
-        if (log.isLoggable(Level.FINE)) {
-            log.fine(String.format("Connection accepted: %s [%s]", accepted,
-                                   name));
+        if (log.isTraceEnabled()) {
+            log.trace(String.format("Connection accepted: %s [%s]", accepted,
+                                    name));
         }
         CommunicationsHandler commHandler = eventHandlerFactory.createCommunicationsHandler(accepted);
         if (commHandler == null) {
@@ -131,10 +131,9 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         try {
             executor.execute(handler.acceptHandler());
         } catch (RejectedExecutionException e) {
-            if (log.isLoggable(Level.WARNING)) {
-                log.log(Level.WARNING,
-                        String.format("too busy to execute accept handling [%s] of [%s]",
-                                      name, handler.getChannel()));
+            if (log.isWarnEnabled()) {
+                log.warn(String.format("too busy to execute accept handling [%s] of [%s]",
+                                       name, handler.getChannel()));
             }
             handler.close();
         }
@@ -157,8 +156,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         try {
             server.close();
         } catch (IOException e) {
-            log.log(Level.FINEST,
-                    String.format("Cannot close: %s [%s]", server, name), e);
+            log.trace(String.format("Cannot close: %s [%s]", server, name), e);
         }
         super.terminateService();
     }
