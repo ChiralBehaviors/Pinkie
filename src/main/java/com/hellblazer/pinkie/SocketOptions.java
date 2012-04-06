@@ -35,7 +35,7 @@ public class SocketOptions {
     private int     receive_buffer_size = -1;
     private boolean reuse_address       = false;
     private int     send_buffer_size    = -1;
-    private int     timeout             = -1;
+    private int     timeout             = 100;
     private int     traffic_class       = -1;
 
     public void configure(ServerSocket socket) throws IOException {
