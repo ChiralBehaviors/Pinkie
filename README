@@ -4,7 +4,7 @@ Pinkie is licenced under the Apache License, Version 2.0
 
 This small library provides a minimal, but full featured NIO socket channel handler.  Pinkie provides a generic selectable ChannelHandler for both inbound and outbound sockets.  The library provides the concrete handling of SocketChannels, as well as a ServerSocketChannel handler.  Pinkie uses a factory to create instances of the event handlers for SocketChannel events.
 
-Pinkie requires Maven 2.x to build.  To build Pinkie, cd into the root directory and do:
+Pinkie requires Maven 3.x to build.  To build Pinkie, cd into the root directory and do:
 
     $ mvn clean install
     
