@@ -42,11 +42,11 @@ import com.hellblazer.pinkie.Utils.Condition;
  */
 public class TestServerSocketChannelHandler extends TestCase {
     private static class ReadHandler implements CommunicationsHandler {
+        final AtomicBoolean  accepted = new AtomicBoolean();
         SocketChannelHandler handler;
-        List<byte[]>         reads    = new CopyOnWriteArrayList<byte[]>();
         final ByteBuffer     read;
         final int            readLength;
-        final AtomicBoolean  accepted = new AtomicBoolean();
+        List<byte[]>         reads    = new CopyOnWriteArrayList<byte[]>();
 
         public ReadHandler(int readLength) {
             read = ByteBuffer.allocate(readLength);
@@ -103,8 +103,8 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     private static class ReadHandlerFactory implements
             CommunicationsHandlerFactory {
-        final int         readLength;
         List<ReadHandler> handlers = new ArrayList<ReadHandler>();
+        final int         readLength;
 
         public ReadHandlerFactory(int readLength) {
             super();
@@ -402,7 +402,7 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return factory.handlers.size() >= 1;
             }
-        }, 4000, 100); 
+        }, 4000, 100);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
         waitFor("Handler was not accepted", new Condition() {
             @Override

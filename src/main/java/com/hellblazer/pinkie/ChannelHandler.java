@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -53,7 +52,7 @@ public class ChannelHandler {
     private final ReentrantLock                   handlersLock  = new ReentrantLock();
     private volatile SocketChannelHandler         openHandlers;
     private final AtomicBoolean                   run           = new AtomicBoolean();
-    private Future<?>                             selectTask;
+    private final Thread                          selectorThread;
     private final int                             selectTimeout = 1000;
     protected final ExecutorService               executor;
     protected final String                        name;
@@ -79,6 +78,9 @@ public class ChannelHandler {
         selector = Selector.open();
         this.executor = executor;
         options = socketOptions;
+        selectorThread = new Thread(selectorTask(),
+                                    String.format("Selector[%s]", name));
+        selectorThread.setDaemon(true);
     }
 
     /**
@@ -191,6 +193,37 @@ public class ChannelHandler {
         if (run.compareAndSet(true, false)) {
             terminateService();
         }
+    }
+
+    private Runnable selectorTask() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                while (run.get()) {
+                    try {
+                        select();
+                    } catch (ClosedSelectorException e) {
+                        if (log.isTraceEnabled()) {
+                            log.trace(String.format("Channel closed [%s]", name),
+                                      e);
+                        }
+                    } catch (IOException e) {
+                        if (log.isTraceEnabled()) {
+                            log.trace(String.format("Error when selecting [%s]",
+                                                    name), e);
+                        }
+                    } catch (CancelledKeyException e) {
+                        if (log.isTraceEnabled()) {
+                            log.trace(String.format("Error when selecting [%s]",
+                                                    name), e);
+                        }
+                    } catch (Throwable e) {
+                        log.error(String.format("Runtime exception when selecting [%s]",
+                                                name), e);
+                    }
+                }
+            }
+        };
     }
 
     void addHandler(SocketChannelHandler handler) {
@@ -387,34 +420,7 @@ public class ChannelHandler {
     }
 
     void startService() {
-        selectTask = executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                while (run.get()) {
-                    try {
-                        select();
-                    } catch (ClosedSelectorException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Channel closed [%s]", name),
-                                      e);
-                        }
-                    } catch (IOException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Error when selecting [%s]",
-                                                    name), e);
-                        }
-                    } catch (CancelledKeyException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Error when selecting [%s]",
-                                                    name), e);
-                        }
-                    } catch (Throwable e) {
-                        log.error(String.format("Runtime exception when selecting [%s]",
-                                                name), e);
-                    }
-                }
-            }
-        });
+        selectorThread.start();
         log.info(format("%s is started", name));
     }
 
@@ -425,7 +431,6 @@ public class ChannelHandler {
         } catch (IOException e) {
             log.info(String.format("Error closing selector [%s]", name), e);
         }
-        selectTask.cancel(true);
         closeOpenHandlers();
         log.info(format("%s is terminated", name));
     }
