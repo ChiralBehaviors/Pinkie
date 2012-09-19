@@ -49,17 +49,15 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         return server;
     }
 
-    private final CommunicationsHandlerFactory eventHandlerFactory;
-    private final ServerSocketChannel          server;
+    private CommunicationsHandlerFactory eventHandlerFactory;
+    private final ServerSocketChannel    server;
 
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
-                                      ExecutorService commsExec,
-                                      CommunicationsHandlerFactory factory)
-                                                                           throws IOException {
+                                      ExecutorService commsExec)
+                                                                throws IOException {
         super(handlerName, socketOptions, commsExec);
-        eventHandlerFactory = factory;
         server = channel;
         server.configureBlocking(false);
         registers.add(new Runnable() {
@@ -75,6 +73,16 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                 }
             }
         });
+    }
+
+    public ServerSocketChannelHandler(String handlerName,
+                                      ServerSocketChannel channel,
+                                      SocketOptions socketOptions,
+                                      ExecutorService commsExec,
+                                      CommunicationsHandlerFactory factory)
+                                                                           throws IOException {
+        this(handlerName, channel, socketOptions, commsExec);
+        eventHandlerFactory = factory;
     }
 
     public ServerSocketChannelHandler(String handlerName,
@@ -95,6 +103,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     public InetSocketAddress getLocalAddress() {
 
         return (InetSocketAddress) server.socket().getLocalSocketAddress();
+    }
+
+    public void setEventHandlerFactory(CommunicationsHandlerFactory eventHandlerFactory) {
+        this.eventHandlerFactory = eventHandlerFactory;
     }
 
     @Override
@@ -118,6 +130,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             log.trace(String.format("Connection accepted: %s [%s]", accepted,
                                     name));
         }
+
         CommunicationsHandler commHandler = eventHandlerFactory.createCommunicationsHandler(accepted);
         if (commHandler == null) {
             accepted.close();
@@ -144,6 +157,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      */
     @Override
     void startService() {
+        if (eventHandlerFactory == null) {
+            throw new IllegalStateException(
+                                            "Event handler factory cannot be null when starting this service");
+        }
         super.startService();
         log.info(format("%s local address: %s", name, getLocalAddress()));
     }
