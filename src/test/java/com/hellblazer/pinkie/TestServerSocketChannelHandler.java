@@ -396,7 +396,6 @@ public class TestServerSocketChannelHandler extends TestCase {
         socketOptions.configure(inbound.socket());
         inbound.configureBlocking(false);
         inbound.connect(endpont);
-        inbound.finishConnect();
         waitFor("No handler was created", new Condition() {
             @Override
             public boolean value() {
@@ -410,6 +409,9 @@ public class TestServerSocketChannelHandler extends TestCase {
                 return scHandler.accepted.get();
             }
         }, 2000, 100);
+
+        assertTrue(inbound.finishConnect());
+
         scHandler.selectForWrite();
         final byte[][] src = new byte[2][];
 
@@ -436,11 +438,6 @@ public class TestServerSocketChannelHandler extends TestCase {
         waitFor("Write was not completed", new Condition() {
             @Override
             public boolean value() {
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    return false;
-                }
                 try {
                     int read = inbound.read(readBuf);
                     byte[] anotherBuf = new byte[read];
