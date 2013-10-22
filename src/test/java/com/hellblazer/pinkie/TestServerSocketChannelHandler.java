@@ -450,7 +450,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                 }
                 return src[0].length == testBuf.size();
             }
-        }, 4000, 100);
+        }, 10000, 100);
         byte[] testArray = testBuf.toByteArray();
         for (int i = 0; i < src[0].length; i++) {
             assertEquals(src[0][i], testArray[i]);
