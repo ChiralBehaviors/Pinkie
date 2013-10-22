@@ -127,7 +127,7 @@ public class TestFullDuplex {
         socketOptions.setReceive_buffer_size(bufferSize);
         socketOptions.setTimeout(100);
 
-        int targetSize = 4 * 1024 * 1024;
+        int targetSize = 4 * 1024;
 
         byte[] inputA = new byte[targetSize];
         for (int i = 0; i < targetSize; i++) {
