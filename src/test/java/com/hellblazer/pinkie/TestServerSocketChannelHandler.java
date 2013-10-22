@@ -378,8 +378,8 @@ public class TestServerSocketChannelHandler extends TestCase {
 
     public void testWrite() throws Exception {
         SocketOptions socketOptions = new SocketOptions();
-        socketOptions.setSend_buffer_size(128);
-        socketOptions.setReceive_buffer_size(128);
+        socketOptions.setSend_buffer_size(1024);
+        socketOptions.setReceive_buffer_size(1024);
         socketOptions.setTimeout(100);
         final SimpleCommHandlerFactory factory = new SimpleCommHandlerFactory();
         final ServerSocketChannelHandler handler = new ServerSocketChannelHandler(
@@ -411,8 +411,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         }, 2000, 100);
 
         assertTrue(inbound.finishConnect());
-
-        scHandler.selectForWrite();
+        
         final byte[][] src = new byte[2][];
 
         ByteBuffer buf = ByteBuffer.wrap(new byte[8192]);
