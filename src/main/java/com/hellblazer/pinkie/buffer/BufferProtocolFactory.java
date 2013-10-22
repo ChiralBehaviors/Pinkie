@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SocketChannel;
 
+import com.hellblazer.pinkie.ChannelHandler;
 import com.hellblazer.pinkie.CommunicationsHandler;
 import com.hellblazer.pinkie.CommunicationsHandlerFactory;
-import com.hellblazer.pinkie.ServerSocketChannelHandler;
 
 /**
  * 
@@ -21,8 +21,8 @@ public class BufferProtocolFactory implements CommunicationsHandlerFactory {
         this.protocol = protocol;
     }
 
-    public void connect(InetSocketAddress remoteAddress,
-                        ServerSocketChannelHandler server) throws IOException {
+    public void connect(InetSocketAddress remoteAddress, ChannelHandler server)
+                                                                               throws IOException {
         CommunicationsHandler handler = constructHandler();
         server.connectTo(remoteAddress, handler);
     }

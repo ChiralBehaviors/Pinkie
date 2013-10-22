@@ -1,7 +1,23 @@
+/*
+ * Copyright (c) 2013 Hal Hildebrand, all rights reserved.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.hellblazer.pinkie.buffer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,12 +40,12 @@ final public class BufferProtocol {
 
         @Override
         public void accept(SocketChannelHandler handler) {
-            if (handler != null) {
+            if (this.handler != null) {
                 throw new IllegalStateException("Handler has already been set");
             }
             this.handler = handler;
             if (log.isDebugEnabled()) {
-                log.debug("socket {} accepted", this.handler.getChannel());
+                log.debug("socket {} accepted", socketInfo());
             }
             protocol.accepted(BufferProtocol.this);
         }
@@ -37,19 +53,19 @@ final public class BufferProtocol {
         @Override
         public void closing() {
             if (log.isDebugEnabled()) {
-                log.debug("socket {} closing", this.handler.getChannel());
+                log.debug("socket {} closing", socketInfo());
             }
             protocol.closing(BufferProtocol.this);
         }
 
         @Override
         public void connect(SocketChannelHandler handler) {
-            if (handler != null) {
+            if (this.handler != null) {
                 throw new IllegalStateException("Handler has already been set");
             }
             this.handler = handler;
             if (log.isDebugEnabled()) {
-                log.debug("socket {} connected", this.handler.getChannel());
+                log.debug("socket {} connected", this.socketInfo());
             }
             protocol.connected(BufferProtocol.this);
         }
@@ -57,28 +73,33 @@ final public class BufferProtocol {
         @Override
         public void readReady() {
             try {
+                if (log.isDebugEnabled()) {
+                    log.debug("socket {} still need to read {} bytes",
+                              socketInfo(), readBuffer.remaining());
+                }
                 int read = handler.getChannel().read(readBuffer);
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} read {} bytes", handler.getChannel(),
-                              read);
+                    log.debug("socket {} read {} bytes", socketInfo(), read);
                 }
             } catch (IOException e) {
                 handler.close();
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} errored during read",
-                              this.handler.getChannel(), e);
+                    log.debug("socket {} errored during read", socketInfo(), e);
                 }
-                protocol.readError();
+                protocol.readError(BufferProtocol.this);
                 return;
             }
-            if (readBuffer.remaining() == 0) {
+            if (readBuffer.hasRemaining()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} read buffer filled",
-                              this.handler.getChannel());
+                    log.debug("socket {} read buffer still needs bytes, selecting for read",
+                              socketInfo());
                 }
-                protocol.readReady();
-            } else {
                 handler.selectForRead();
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("socket {} read buffer filled", socketInfo());
+                }
+                protocol.readReady(readBuffer);
             }
         }
 
@@ -93,34 +114,48 @@ final public class BufferProtocol {
         @Override
         public void writeReady() {
             try {
-                int written = handler.getChannel().write(readBuffer);
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} wrote {} bytes", handler.getChannel(),
-                              written);
+                    log.debug("socket {} still need to write {} bytes",
+                              socketInfo(), writeBuffer.remaining());
+                }
+                int written = handler.getChannel().write(writeBuffer);
+                if (log.isDebugEnabled()) {
+                    log.debug("socket {} wrote {} bytes", socketInfo(), written);
                 }
             } catch (IOException e) {
                 handler.close();
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} errored during write",
-                              this.handler.getChannel(), e);
+                    log.debug("socket {} errored during write", socketInfo(), e);
                 }
-                protocol.readError();
+                protocol.readError(BufferProtocol.this);
                 return;
             }
-            if (readBuffer.remaining() == 0) {
+            if (writeBuffer.hasRemaining()) {
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} write buffer emptied",
-                              this.handler.getChannel());
+                    log.debug("socket {} write buffer still has bytes, selecting for write",
+                              socketInfo());
                 }
-                protocol.writeReady();
+                handler.selectForWrite();
             } else {
-                handler.selectForRead();
+                if (log.isDebugEnabled()) {
+                    log.debug("socket {} write buffer emptied", socketInfo());
+                }
+                protocol.writeReady(writeBuffer);
             }
+        }
+
+        public String socketInfo() {
+            SocketChannel channel = handler.getChannel();
+            return String.format("[%s local=%s remote=%s]",
+                                 channel.isConnected() ? "connected"
+                                                      : "unconnected",
+                                 channel.socket().getLocalAddress(),
+                                 channel.socket().getRemoteSocketAddress());
         }
 
     }
 
-    private static final Logger log = LoggerFactory.getLogger(BufferProtocol.class);
+    private static final Logger         log = LoggerFactory.getLogger(BufferProtocol.class);
 
     private CommsHandler                handler;
     private final ByteBuffer            readBuffer;
