@@ -9,6 +9,8 @@ import com.hellblazer.pinkie.CommunicationsHandler;
 import com.hellblazer.pinkie.CommunicationsHandlerFactory;
 
 /**
+ * A factory for constructing BufferProtocol instances so that they can be used
+ * for accepts and connects
  * 
  * @author hhildebrand
  * 

@@ -18,6 +18,8 @@ package com.hellblazer.pinkie.buffer;
 import java.nio.ByteBuffer;
 
 /**
+ * The handler for buffer protocol events. These methods will be called by the
+ * protocol.
  * 
  * @author hhildebrand
  * 
@@ -65,13 +67,20 @@ public interface BufferProtocolHandler {
 
     /**
      * The readBuffer has been filled
+     * 
      */
-    void readReady(ByteBuffer readBuffer);
+    void readReady(ByteBuffer readBuffer, BufferProtocol bufferProtocol);
 
     /**
      * The write buffer has been emptied
+     * 
      */
-    void writeReady(ByteBuffer writeBuffer);
+    void writeReady(ByteBuffer writeBuffer, BufferProtocol bufferProtocol);
 
+    /**
+     * The buffer protocol produced a write error
+     * 
+     * @param bufferProtocol
+     */
     void writeError(BufferProtocol bufferProtocol);
 }

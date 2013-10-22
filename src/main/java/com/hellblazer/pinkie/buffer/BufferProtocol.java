@@ -107,7 +107,7 @@ final public class BufferProtocol {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} read buffer filled", socketInfo());
                 }
-                protocol.readReady(readBuffer);
+                protocol.readReady(readBuffer, BufferProtocol.this);
             }
         }
 
@@ -164,7 +164,7 @@ final public class BufferProtocol {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} write buffer emptied", socketInfo());
                 }
-                protocol.writeReady(writeBuffer);
+                protocol.writeReady(writeBuffer, BufferProtocol.this);
             }
         }
 

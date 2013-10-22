@@ -15,8 +15,13 @@
  */
 package com.hellblazer.pinkie.buffer;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -34,8 +39,6 @@ import com.hellblazer.pinkie.ChannelHandler;
 import com.hellblazer.pinkie.ServerSocketChannelHandler;
 import com.hellblazer.pinkie.SocketOptions;
 import com.hellblazer.pinkie.Utils;
-
-import static org.junit.Assert.*;
 
 /**
  * 
@@ -116,10 +119,12 @@ public class TestBufferProtocol {
         waitForMessages(clientMessageReceived, serverMessageReceived);
 
         ArgumentCaptor<ByteBuffer> clientMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(client).readReady(clientMessageCaptor.capture());
+        verify(client).readReady(clientMessageCaptor.capture(),
+                                 eq(clientBufferProtocol.getValue()));
 
         ArgumentCaptor<ByteBuffer> serverMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(server).readReady(serverMessageCaptor.capture());
+        verify(server).readReady(serverMessageCaptor.capture(),
+                                 eq(serverBufferProtocol.getValue()));
 
         validate(serverMessage, clientMessageCaptor.getValue());
         validate(clientMessage, serverMessageCaptor.getValue());
@@ -161,7 +166,8 @@ public class TestBufferProtocol {
                 signal.set(true);
                 return null;
             }
-        }).when(handler).readReady(any(ByteBuffer.class));
+        }).when(handler).readReady(any(ByteBuffer.class),
+                                   any(BufferProtocol.class));
     }
 
     private void waitForConnect(final AtomicBoolean clientConnect,
