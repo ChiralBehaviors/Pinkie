@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.hellblazer</groupId>
 	<artifactId>pinkie</artifactId>
-	<version>0.0.1</version>
+	<version>0.0.2-SNAPSHOT</version>
 	<name>Pinkie</name>
 	<description>A minimal NIO Socket library</description>
 	<url>https://github.com/Hellblazer/Pinkie</url>
@@ -19,6 +19,14 @@
 	<scm>
 		<url>https://github.com/Hellblazer/Pinkie.git</url>
 	</scm>
+
+	<repositories>
+		<repository>
+			<id>hellblazer-snapshots</id>
+			<name>Hellblazer Snapshots </name>
+			<url>http://repository-ouroboros.forge.cloudbees.com/snapshot/</url>
+		</repository>
+	</repositories>
 
 	<build>
 		<plugins>
@@ -37,6 +45,20 @@
 				<configuration>
 					<forkMode>always</forkMode>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>2.2.1</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
