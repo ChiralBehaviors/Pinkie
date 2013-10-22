@@ -123,6 +123,12 @@ public class TestBufferProtocol {
 
         validate(serverMessage, clientMessageCaptor.getValue());
         validate(clientMessage, serverMessageCaptor.getValue());
+
+        clientBufferProtocol.getValue().close();
+        serverBufferProtocol.getValue().close();
+
+        verify(client).closing(clientBufferProtocol.getValue());
+        verify(server).closing(serverBufferProtocol.getValue());
     }
 
     private void signalAccept(final AtomicBoolean serverAccepted,

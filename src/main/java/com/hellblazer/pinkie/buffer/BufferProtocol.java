@@ -17,6 +17,7 @@ package com.hellblazer.pinkie.buffer;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 
 import org.slf4j.Logger;
@@ -82,11 +83,18 @@ final public class BufferProtocol {
                     log.debug("socket {} read {} bytes", socketInfo(), read);
                 }
             } catch (IOException e) {
-                handler.close();
-                if (log.isDebugEnabled()) {
-                    log.debug("socket {} errored during read", socketInfo(), e);
+                if (isClosedConnection(e)) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} closed during read", socketInfo());
+                    }
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} errored during read",
+                                  socketInfo(), e);
+                    }
+                    protocol.readError(BufferProtocol.this);
                 }
-                protocol.readError(BufferProtocol.this);
+                handler.close();
                 return;
             }
             if (readBuffer.hasRemaining()) {
@@ -111,6 +119,15 @@ final public class BufferProtocol {
             handler.selectForWrite();
         }
 
+        public String socketInfo() {
+            SocketChannel channel = handler.getChannel();
+            return String.format("[%s local=%s remote=%s]",
+                                 channel.isConnected() ? "connected"
+                                                      : "unconnected",
+                                 channel.socket().getLocalAddress(),
+                                 channel.socket().getRemoteSocketAddress());
+        }
+
         @Override
         public void writeReady() {
             try {
@@ -123,11 +140,18 @@ final public class BufferProtocol {
                     log.debug("socket {} wrote {} bytes", socketInfo(), written);
                 }
             } catch (IOException e) {
-                handler.close();
-                if (log.isDebugEnabled()) {
-                    log.debug("socket {} errored during write", socketInfo(), e);
+                if (isClosedConnection(e)) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} closed during write", socketInfo());
+                    }
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} errored during write",
+                                  socketInfo(), e);
+                    }
+                    protocol.writeError(BufferProtocol.this);
                 }
-                protocol.readError(BufferProtocol.this);
+                handler.close();
                 return;
             }
             if (writeBuffer.hasRemaining()) {
@@ -144,22 +168,30 @@ final public class BufferProtocol {
             }
         }
 
-        public String socketInfo() {
-            SocketChannel channel = handler.getChannel();
-            return String.format("[%s local=%s remote=%s]",
-                                 channel.isConnected() ? "connected"
-                                                      : "unconnected",
-                                 channel.socket().getLocalAddress(),
-                                 channel.socket().getRemoteSocketAddress());
+        public void close() {
+            handler.close();
         }
 
     }
 
-    private static final Logger         log = LoggerFactory.getLogger(BufferProtocol.class);
+    private static final Logger log = LoggerFactory.getLogger(BufferProtocol.class);
+
+    /**
+     * Answer true if the io exception is a form of a closed connection
+     * 
+     * @param ioe
+     * @return
+     */
+    public static boolean isClosedConnection(IOException ioe) {
+        return ioe instanceof ClosedChannelException
+               || "Broken pipe".equals(ioe.getMessage())
+               || "Connection reset by peer".equals(ioe.getMessage());
+    }
 
     private CommsHandler                handler;
     private final ByteBuffer            readBuffer;
     private final ByteBuffer            writeBuffer;
+
     private final BufferProtocolHandler protocol;
 
     public BufferProtocol(ByteBuffer readBuffer,
@@ -168,6 +200,10 @@ final public class BufferProtocol {
         this.protocol = protocol;
         this.writeBuffer = writeBuffer;
         this.handler = new CommsHandler();
+    }
+
+    public void close() {
+        handler.close();
     }
 
     /**

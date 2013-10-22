@@ -72,4 +72,6 @@ public interface BufferProtocolHandler {
      * The write buffer has been emptied
      */
     void writeReady(ByteBuffer writeBuffer);
+
+    void writeError(BufferProtocol bufferProtocol);
 }
