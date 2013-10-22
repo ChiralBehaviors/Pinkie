@@ -50,7 +50,7 @@ public class TestBufferProtocol {
     @Test
     public void testFullDuplex() throws IOException, InterruptedException {
         int bufferSize = 1024;
-        int targetSize = 4 * 1024 * 1024;
+        int targetSize = 4 * 1024;
 
         byte[] clientMessage = new byte[targetSize];
         for (int i = 0; i < targetSize; i++) {
