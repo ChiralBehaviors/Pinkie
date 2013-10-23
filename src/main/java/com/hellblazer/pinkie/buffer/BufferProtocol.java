@@ -51,12 +51,16 @@ final public class BufferProtocol {
             protocol.accepted(BufferProtocol.this);
         }
 
+        public void close() {
+            handler.close();
+        }
+
         @Override
         public void closing() {
             if (log.isDebugEnabled()) {
                 log.debug("socket {} closing", socketInfo());
             }
-            protocol.closing(BufferProtocol.this);
+            protocol.closing();
         }
 
         @Override
@@ -92,7 +96,7 @@ final public class BufferProtocol {
                         log.debug("socket {} errored during read",
                                   socketInfo(), e);
                     }
-                    protocol.readError(BufferProtocol.this);
+                    protocol.readError();
                 }
                 handler.close();
                 return;
@@ -107,7 +111,7 @@ final public class BufferProtocol {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} read buffer filled", socketInfo());
                 }
-                protocol.readReady(readBuffer, BufferProtocol.this);
+                protocol.readReady(readBuffer);
             }
         }
 
@@ -149,7 +153,7 @@ final public class BufferProtocol {
                         log.debug("socket {} errored during write",
                                   socketInfo(), e);
                     }
-                    protocol.writeError(BufferProtocol.this);
+                    protocol.writeError();
                 }
                 handler.close();
                 return;
@@ -164,12 +168,8 @@ final public class BufferProtocol {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} write buffer emptied", socketInfo());
                 }
-                protocol.writeReady(writeBuffer, BufferProtocol.this);
+                protocol.writeReady(writeBuffer);
             }
-        }
-
-        public void close() {
-            handler.close();
         }
 
     }
@@ -209,7 +209,7 @@ final public class BufferProtocol {
     /**
      * @return the CommunicationsHandler for this protocol
      */
-    CommunicationsHandler getHandler() {
+    public CommunicationsHandler getHandler() {
         return handler;
     }
 

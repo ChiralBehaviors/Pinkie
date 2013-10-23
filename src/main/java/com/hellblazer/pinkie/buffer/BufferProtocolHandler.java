@@ -34,10 +34,8 @@ public interface BufferProtocolHandler {
 
     /**
      * The buffer protocol is closing the socket
-     * 
-     * @param bufferProtocol
      */
-    void closing(BufferProtocol bufferProtocol);
+    void closing();
 
     /**
      * The buffer protocol has connected the outbound socket
@@ -63,24 +61,22 @@ public interface BufferProtocolHandler {
     /**
      * The buffer protocol produced a read error
      */
-    void readError(BufferProtocol bufferProtocol);
+    void readError();
 
     /**
      * The readBuffer has been filled
      * 
      */
-    void readReady(ByteBuffer readBuffer, BufferProtocol bufferProtocol);
+    void readReady(ByteBuffer readBuffer);
+
+    /**
+     * The buffer protocol produced a write error
+     */
+    void writeError();
 
     /**
      * The write buffer has been emptied
      * 
      */
-    void writeReady(ByteBuffer writeBuffer, BufferProtocol bufferProtocol);
-
-    /**
-     * The buffer protocol produced a write error
-     * 
-     * @param bufferProtocol
-     */
-    void writeError(BufferProtocol bufferProtocol);
+    void writeReady(ByteBuffer writeBuffer);
 }

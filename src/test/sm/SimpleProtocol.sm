@@ -1,0 +1,113 @@
+%package com.hellblazer.pinkie.buffer.fsmExample
+%import com.hellblazer.pinkie.buffer.BufferProtocol
+%import java.nio.ByteBuffer
+%class SimpleProtocol
+%start Simple::Initial
+
+%map Simple
+%%
+Initial {
+    accepted(bufferProtocol: BufferProtocol)
+        ProtocolError {
+            setBufferProtocol(bufferProtocol);
+        }
+        
+    connected(bufferProtocol: BufferProtocol)
+        ProtocolError {
+            setBufferProtocol(bufferProtocol);
+        }
+}
+
+ProtocolError {
+}
+
+Default { 
+     
+    closing()
+        ProtocolError {}
+        
+    readError()
+        ProtocolError {}
+        
+    writeError()
+        ProtocolError {}
+        
+    readReady(readBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    writeReady(writeBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    
+}
+%%
+
+%map SimpleClient
+%%
+
+Connect {
+}
+
+ProtocolError {
+}
+
+Default {
+    accepted(bufferProtocol: BufferProtocol)
+        ProtocolError {}
+     
+    closing()
+        ProtocolError {}
+        
+    connected(bufferProtocol: BufferProtocol)
+        ProtocolError {}
+        
+    readError()
+        ProtocolError {}
+        
+    writeError()
+        ProtocolError {}
+        
+    readReady(readBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    writeReady(writeBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    
+}
+%%
+
+%map SimpleServer
+%%
+
+Accept {
+}
+
+ProtocolError {
+}
+
+Default {
+    accepted(bufferProtocol: BufferProtocol)
+        ProtocolError {}
+     
+    closing()
+        ProtocolError {}
+        
+    connected(bufferProtocol: BufferProtocol)
+        ProtocolError {}
+        
+    readError()
+        ProtocolError {}
+        
+    writeError()
+        ProtocolError {}
+        
+    readReady(readBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    writeReady(writeBuffer: ByteBuffer)
+        ProtocolError {}
+        
+    
+}
+%%

@@ -17,7 +17,6 @@ package com.hellblazer.pinkie.buffer;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -119,12 +118,10 @@ public class TestBufferProtocol {
         waitForMessages(clientMessageReceived, serverMessageReceived);
 
         ArgumentCaptor<ByteBuffer> clientMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(client).readReady(clientMessageCaptor.capture(),
-                                 eq(clientBufferProtocol.getValue()));
+        verify(client).readReady(clientMessageCaptor.capture());
 
         ArgumentCaptor<ByteBuffer> serverMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(server).readReady(serverMessageCaptor.capture(),
-                                 eq(serverBufferProtocol.getValue()));
+        verify(server).readReady(serverMessageCaptor.capture());
 
         validate(serverMessage, clientMessageCaptor.getValue());
         validate(clientMessage, serverMessageCaptor.getValue());
@@ -132,8 +129,8 @@ public class TestBufferProtocol {
         clientBufferProtocol.getValue().close();
         serverBufferProtocol.getValue().close();
 
-        verify(client).closing(clientBufferProtocol.getValue());
-        verify(server).closing(serverBufferProtocol.getValue());
+        verify(client).closing();
+        verify(server).closing();
     }
 
     private void signalAccept(final AtomicBoolean serverAccepted,
@@ -166,8 +163,7 @@ public class TestBufferProtocol {
                 signal.set(true);
                 return null;
             }
-        }).when(handler).readReady(any(ByteBuffer.class),
-                                   any(BufferProtocol.class));
+        }).when(handler).readReady(any(ByteBuffer.class));
     }
 
     private void waitForConnect(final AtomicBoolean clientConnect,
