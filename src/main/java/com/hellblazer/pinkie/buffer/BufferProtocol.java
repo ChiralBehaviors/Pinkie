@@ -102,11 +102,19 @@ final public class BufferProtocol {
                 return;
             }
             if (readBuffer.hasRemaining()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("socket {} read buffer still needs bytes, selecting for read",
-                              socketInfo());
+                if (readFullBuffer) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} read buffer still needs bytes, selecting for read",
+                                  socketInfo());
+                    }
+                    handler.selectForRead();
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} read buffer partial read",
+                                  socketInfo());
+                    }
+                    protocol.readReady(readBuffer);
                 }
-                handler.selectForRead();
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} read buffer filled", socketInfo());
@@ -159,11 +167,19 @@ final public class BufferProtocol {
                 return;
             }
             if (writeBuffer.hasRemaining()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("socket {} write buffer still has bytes, selecting for write",
-                              socketInfo());
+                if (writeFullBuffer) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} write buffer still has bytes, selecting for write",
+                                  socketInfo());
+                    }
+                    handler.selectForWrite();
+                } else {
+                    if (log.isDebugEnabled()) {
+                        log.debug("socket {} write buffer partial write",
+                                  socketInfo());
+                    }
+                    protocol.writeReady(writeBuffer);
                 }
-                handler.selectForWrite();
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} write buffer emptied", socketInfo());
@@ -171,7 +187,6 @@ final public class BufferProtocol {
                 protocol.writeReady(writeBuffer);
             }
         }
-
     }
 
     private static final Logger log = LoggerFactory.getLogger(BufferProtocol.class);
@@ -191,6 +206,8 @@ final public class BufferProtocol {
     private CommsHandler                handler;
     private final ByteBuffer            readBuffer;
     private final ByteBuffer            writeBuffer;
+    private boolean                     writeFullBuffer = true;
+    private boolean                     readFullBuffer  = true;
 
     private final BufferProtocolHandler protocol;
 
@@ -242,5 +259,27 @@ final public class BufferProtocol {
      */
     public void selectForWrite() {
         handler.selectForWrite();
+    }
+
+    /**
+     * Set the behavior of the asynchronous read.
+     * 
+     * @param readFullBuffer
+     *            - true if the read buffer must be filled to get a callback,
+     *            false if callbacks are sent for every non zero read
+     */
+    public void setReadFullBuffer(boolean readFullBuffer) {
+        this.readFullBuffer = readFullBuffer;
+    }
+
+    /**
+     * Set the behavior of the asynchronous write.
+     * 
+     * @param writeFullBuffer
+     *            - true if the write buffer must be emptied to get a callback,
+     *            false if callbacks are sent for every non zero write
+     */
+    public void setWriteFullBuffer(boolean writeFullBuffer) {
+        this.writeFullBuffer = writeFullBuffer;
     }
 }
