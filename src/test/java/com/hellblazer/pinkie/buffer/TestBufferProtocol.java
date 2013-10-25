@@ -117,14 +117,8 @@ public class TestBufferProtocol {
 
         waitForMessages(clientMessageReceived, serverMessageReceived);
 
-        ArgumentCaptor<ByteBuffer> clientMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(client).readReady();
-
-        ArgumentCaptor<ByteBuffer> serverMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(server).readReady();
-
-        validate(serverMessage, clientMessageCaptor.getValue());
-        validate(clientMessage, serverMessageCaptor.getValue());
+        validate(serverMessage, clientBufferProtocol.getValue().getReadBuffer());
+        validate(clientMessage, serverBufferProtocol.getValue().getReadBuffer());
 
         clientBufferProtocol.getValue().close();
         serverBufferProtocol.getValue().close();
