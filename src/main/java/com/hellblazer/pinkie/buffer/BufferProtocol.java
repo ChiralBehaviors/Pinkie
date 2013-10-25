@@ -113,13 +113,13 @@ final public class BufferProtocol {
                         log.debug("socket {} read buffer partial read",
                                   socketInfo());
                     }
-                    protocol.readReady(readBuffer);
+                    protocol.readReady();
                 }
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} read buffer filled", socketInfo());
                 }
-                protocol.readReady(readBuffer);
+                protocol.readReady();
             }
         }
 
@@ -178,13 +178,13 @@ final public class BufferProtocol {
                         log.debug("socket {} write buffer partial write",
                                   socketInfo());
                     }
-                    protocol.writeReady(writeBuffer);
+                    protocol.writeReady();
                 }
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("socket {} write buffer emptied", socketInfo());
                 }
-                protocol.writeReady(writeBuffer);
+                protocol.writeReady();
             }
         }
     }

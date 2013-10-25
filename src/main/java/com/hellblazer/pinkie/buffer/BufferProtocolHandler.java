@@ -67,7 +67,7 @@ public interface BufferProtocolHandler {
      * The readBuffer has been filled
      * 
      */
-    void readReady(ByteBuffer readBuffer);
+    void readReady();
 
     /**
      * The buffer protocol produced a write error
@@ -78,5 +78,5 @@ public interface BufferProtocolHandler {
      * The write buffer has been emptied
      * 
      */
-    void writeReady(ByteBuffer writeBuffer);
+    void writeReady();
 }

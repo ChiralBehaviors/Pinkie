@@ -118,10 +118,10 @@ public class TestBufferProtocol {
         waitForMessages(clientMessageReceived, serverMessageReceived);
 
         ArgumentCaptor<ByteBuffer> clientMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(client).readReady(clientMessageCaptor.capture());
+        verify(client).readReady();
 
         ArgumentCaptor<ByteBuffer> serverMessageCaptor = ArgumentCaptor.forClass(ByteBuffer.class);
-        verify(server).readReady(serverMessageCaptor.capture());
+        verify(server).readReady();
 
         validate(serverMessage, clientMessageCaptor.getValue());
         validate(clientMessage, serverMessageCaptor.getValue());
@@ -163,7 +163,7 @@ public class TestBufferProtocol {
                 signal.set(true);
                 return null;
             }
-        }).when(handler).readReady(any(ByteBuffer.class));
+        }).when(handler).readReady();
     }
 
     private void waitForConnect(final AtomicBoolean clientConnect,
