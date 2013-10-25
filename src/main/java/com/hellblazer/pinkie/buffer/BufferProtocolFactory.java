@@ -30,8 +30,7 @@ public class BufferProtocolFactory implements CommunicationsHandlerFactory {
     }
 
     private CommunicationsHandler constructHandler() {
-        return new BufferProtocol(protocol.newReadBuffer(), protocol,
-                                  protocol.newWriteBuffer()).getHandler();
+        return new BufferProtocol(protocol).getHandler();
     }
 
     @Override

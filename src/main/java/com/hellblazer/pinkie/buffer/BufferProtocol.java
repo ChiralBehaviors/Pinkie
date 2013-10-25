@@ -211,11 +211,10 @@ final public class BufferProtocol {
 
     private final BufferProtocolHandler protocol;
 
-    public BufferProtocol(ByteBuffer readBuffer,
-                          BufferProtocolHandler protocol, ByteBuffer writeBuffer) {
-        this.readBuffer = readBuffer;
+    public BufferProtocol(BufferProtocolHandler protocol) {
+        this.readBuffer = protocol.newReadBuffer();
         this.protocol = protocol;
-        this.writeBuffer = writeBuffer;
+        this.writeBuffer = protocol.newWriteBuffer();
         this.handler = new CommsHandler();
     }
 
