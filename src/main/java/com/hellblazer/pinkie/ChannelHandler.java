@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
  * 
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
  * 
+ * 
  */
 public class ChannelHandler {
     private final static Logger                   log           = LoggerFactory.getLogger(ChannelHandler.class);
