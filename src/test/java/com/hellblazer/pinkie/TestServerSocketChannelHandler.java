@@ -411,7 +411,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         }, 2000, 100);
 
         assertTrue(inbound.finishConnect());
-        
+
         final byte[][] src = new byte[2][];
 
         ByteBuffer buf = ByteBuffer.wrap(new byte[8192]);

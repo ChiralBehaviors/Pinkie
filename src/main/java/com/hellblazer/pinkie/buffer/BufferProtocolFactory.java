@@ -29,12 +29,12 @@ public class BufferProtocolFactory implements CommunicationsHandlerFactory {
         server.connectTo(remoteAddress, handler);
     }
 
-    private CommunicationsHandler constructHandler() {
-        return new BufferProtocol(protocol).getHandler();
-    }
-
     @Override
     public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
         return constructHandler();
+    }
+
+    private CommunicationsHandler constructHandler() {
+        return new BufferProtocol(protocol).getHandler();
     }
 }

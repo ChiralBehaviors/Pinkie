@@ -49,6 +49,16 @@ public class TestBufferProtocol {
     private ChannelHandler             clientHandler;
     private ServerSocketChannelHandler serverHandler;
 
+    @After
+    public void cleanUp() {
+        if (clientHandler != null) {
+            clientHandler.terminate();
+        }
+        if (serverHandler != null) {
+            serverHandler.terminate();
+        }
+    }
+
     @Test
     public void testFullDuplex() throws IOException, InterruptedException {
         int bufferSize = 1024;
@@ -127,6 +137,26 @@ public class TestBufferProtocol {
         verify(server).closing();
     }
 
+    private void constructClientHandler(SocketOptions socketOptions)
+                                                                    throws IOException {
+        clientHandler = new ChannelHandler("Client", socketOptions,
+                                           Executors.newCachedThreadPool());
+    }
+
+    private void constructServerHandler(SocketOptions socketOptions,
+                                        BufferProtocolHandler server)
+                                                                     throws IOException {
+        serverHandler = new ServerSocketChannelHandler(
+                                                       "Server",
+                                                       socketOptions,
+                                                       new InetSocketAddress(
+                                                                             "127.0.0.1",
+                                                                             0),
+                                                       Executors.newCachedThreadPool(),
+                                                       new BufferProtocolFactory(
+                                                                                 server));
+    }
+
     private void signalAccept(final AtomicBoolean serverAccepted,
                               BufferProtocolHandler server) {
         doAnswer(new Answer<Void>() {
@@ -158,6 +188,13 @@ public class TestBufferProtocol {
                 return null;
             }
         }).when(handler).readReady();
+    }
+
+    private void validate(byte[] expected, ByteBuffer actual) {
+        actual.flip();
+        byte[] actualBytes = new byte[expected.length];
+        actual.get(actualBytes);
+        assertArrayEquals(expected, actualBytes);
     }
 
     private void waitForConnect(final AtomicBoolean clientConnect,
@@ -194,42 +231,5 @@ public class TestBufferProtocol {
                 return serverMessageSignal.get();
             }
         }, 5000, 100);
-    }
-
-    private void constructClientHandler(SocketOptions socketOptions)
-                                                                    throws IOException {
-        clientHandler = new ChannelHandler("Client", socketOptions,
-                                           Executors.newCachedThreadPool());
-    }
-
-    private void constructServerHandler(SocketOptions socketOptions,
-                                        BufferProtocolHandler server)
-                                                                     throws IOException {
-        serverHandler = new ServerSocketChannelHandler(
-                                                       "Server",
-                                                       socketOptions,
-                                                       new InetSocketAddress(
-                                                                             "127.0.0.1",
-                                                                             0),
-                                                       Executors.newCachedThreadPool(),
-                                                       new BufferProtocolFactory(
-                                                                                 server));
-    }
-
-    @After
-    public void cleanUp() {
-        if (clientHandler != null) {
-            clientHandler.terminate();
-        }
-        if (serverHandler != null) {
-            serverHandler.terminate();
-        }
-    }
-
-    private void validate(byte[] expected, ByteBuffer actual) {
-        actual.flip();
-        byte[] actualBytes = new byte[expected.length];
-        actual.get(actualBytes);
-        assertArrayEquals(expected, actualBytes);
     }
 }
