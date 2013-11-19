@@ -166,7 +166,6 @@ public class ChannelHandler {
         options.configure(socketChannel.socket());
         addHandler(handler);
         socketChannel.configureBlocking(false);
-        registerConnect(index, socketChannel, handler);
         try {
             socketChannel.connect(remoteAddress);
         } catch (IOException e) {
@@ -175,6 +174,7 @@ public class ChannelHandler {
             handler.close();
             return;
         }
+        registerConnect(index, socketChannel, handler);
         return;
     }
 
