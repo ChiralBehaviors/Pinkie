@@ -18,7 +18,6 @@ package com.hellblazer.pinkie;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,9 +33,9 @@ public class SimpleCommHandler implements CommunicationsHandler {
     final AtomicBoolean                         accepted  = new AtomicBoolean();
     final AtomicBoolean                         closed    = new AtomicBoolean();
     final AtomicBoolean                         connected = new AtomicBoolean();
-    final AtomicReference<SocketChannelHandler> handler   = new AtomicReference<SocketChannelHandler>();
-    final List<byte[]>                          reads     = new ArrayList<byte[]>();
-    final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<ByteBuffer>();
+    final AtomicReference<SocketChannelHandler> handler   = new AtomicReference<>();
+    final List<byte[]>                          reads     = new CopyOnWriteArrayList<>();
+    final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<>();
 
     @Override
     public void accept(SocketChannelHandler handler) {

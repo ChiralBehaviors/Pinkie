@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
@@ -36,11 +37,11 @@ import com.hellblazer.pinkie.Utils.Condition;
 public class TestFullDuplex {
 
     private static class Handler implements CommunicationsHandler {
-        volatile SocketChannelHandler handler;
-        final String                  label;
-        final ByteBuffer              read;
-        final AtomicBoolean           readFinished = new AtomicBoolean();
-        final ByteBuffer              write;
+        final AtomicReference<SocketChannelHandler> handler      = new AtomicReference<>();
+        final String                                label;
+        final ByteBuffer                            read;
+        final AtomicBoolean                         readFinished = new AtomicBoolean();
+        final ByteBuffer                            write;
 
         public Handler(String label, int targetSize, byte[] output) {
             this.label = label;
@@ -50,7 +51,8 @@ public class TestFullDuplex {
 
         @Override
         public void accept(SocketChannelHandler handler) {
-            this.handler = handler;
+            assert handler != null;
+            this.handler.set(handler);
         }
 
         @Override
@@ -59,26 +61,27 @@ public class TestFullDuplex {
 
         @Override
         public void connect(SocketChannelHandler handler) {
-            this.handler = handler;
+            assert handler != null;
+            this.handler.set(handler);
         }
 
         @Override
         public void readReady() {
             try {
-                handler.getChannel().read(read);
+                handler.get().getChannel().read(read);
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
             if (!read.hasRemaining()) {
                 readFinished.set(true);
             } else {
-                handler.selectForRead();
+                handler.get().selectForRead();
             }
         }
 
         public void select() {
-            handler.selectForRead();
-            handler.selectForWrite();
+            handler.get().selectForRead();
+            handler.get().selectForWrite();
         }
 
         @Override
@@ -89,21 +92,21 @@ public class TestFullDuplex {
         @Override
         public void writeReady() {
             try {
-                handler.getChannel().write(write);
+                handler.get().getChannel().write(write);
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
             if (write.hasRemaining()) {
-                handler.selectForWrite();
+                handler.get().selectForWrite();
             }
         }
     }
 
     private static class HandlerFactory implements CommunicationsHandlerFactory {
-        volatile Handler handler;
-        final String     label;
-        final byte[]     output;
-        final int        targetSize;
+        final AtomicReference<Handler> handler = new AtomicReference<>();
+        final String                   label;
+        final byte[]                   output;
+        final int                      targetSize;
 
         public HandlerFactory(String label, int targetSize, byte[] output) {
             this.label = label;
@@ -113,8 +116,8 @@ public class TestFullDuplex {
 
         @Override
         public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
-            handler = new Handler(label, targetSize, output);
-            return handler;
+            handler.set(new Handler(label, targetSize, output));
+            return handler.get();
         }
 
     }
@@ -155,7 +158,7 @@ public class TestFullDuplex {
                                                                              new InetSocketAddress(
                                                                                                    "127.0.0.1",
                                                                                                    0),
-                                                                             Executors.newFixedThreadPool(3),
+                                                                             Executors.newCachedThreadPool(),
                                                                              factoryB);
 
         final Handler initiator = new Handler("A", targetSize, inputA);
@@ -168,18 +171,18 @@ public class TestFullDuplex {
         waitFor("initiator not connected", new Condition() {
             @Override
             public boolean value() {
-                return initiator.handler != null;
+                return initiator.handler.get() != null;
             }
-        }, 10000, 100);
+        }, 1000, 100);
 
         waitFor("acceptor not connected", new Condition() {
             @Override
             public boolean value() {
-                return factoryB.handler != null;
+                return factoryB.handler.get() != null;
             }
-        }, 10000, 100);
+        }, 1000, 100);
 
-        final Handler acceptor = factoryB.handler;
+        final Handler acceptor = factoryB.handler.get();
         initiator.select();
         acceptor.select();
 
@@ -188,14 +191,14 @@ public class TestFullDuplex {
             public boolean value() {
                 return initiator.readFinished.get();
             }
-        }, 100000, 100);
+        }, 1000, 100);
 
         waitFor("acceptor failed to read fully", new Condition() {
             @Override
             public boolean value() {
                 return acceptor.readFinished.get();
             }
-        }, 100000, 100);
+        }, 1000, 100);
 
         handlerA.terminate();
         handlerB.terminate();

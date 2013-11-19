@@ -186,7 +186,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         }, 2000, 100);
         assertEquals(1, factory.handlers.size());
         scHandler.selectForRead();
-
+        System.out.println("Closing socket");
         outbound.close();
         waitFor("Handler was not closed", new Condition() {
             @Override
@@ -237,14 +237,14 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return writeHandler.connected.get();
             }
-        }, 10000, 100);
+        }, 1000, 100);
 
         waitFor("No inbound handler was created", new Condition() {
             @Override
             public boolean value() {
                 return inboundFactory.handlers.size() >= 1;
             }
-        }, 10000, 100);
+        }, 1000, 100);
 
         final ReadHandler readHandler = inboundFactory.handlers.get(0);
 
@@ -279,7 +279,7 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return readHandler.reads.size() == 1;
             }
-        }, 60000, 100);
+        }, 1000, 100);
 
         writeHandler.selectForWrite();
         readHandler.selectForRead();
@@ -289,7 +289,7 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return readHandler.reads.size() >= 1;
             }
-        }, 60000, 100);
+        }, 1000, 100);
 
         int j = 0;
         for (byte[] result : readHandler.reads) {
@@ -323,14 +323,14 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return factory.handlers.size() >= 1;
             }
-        }, 2000, 100);
+        }, 4000, 100);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
         waitFor("Handler was not accepted", new Condition() {
             @Override
             public boolean value() {
                 return scHandler.accepted.get();
             }
-        }, 2000, 100);
+        }, 4000, 100);
         scHandler.selectForRead();
         ByteBuffer buf = ByteBuffer.wrap(new byte[512]);
         byte[] src = new byte[512];
@@ -401,14 +401,14 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return factory.handlers.size() >= 1;
             }
-        }, 4000, 100);
+        }, 1000, 100);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
         waitFor("Handler was not accepted", new Condition() {
             @Override
             public boolean value() {
                 return scHandler.accepted.get();
             }
-        }, 2000, 100);
+        }, 1000, 100);
 
         assertTrue(inbound.finishConnect());
 
@@ -449,7 +449,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                 }
                 return src[0].length == testBuf.size();
             }
-        }, 10000, 100);
+        }, 2000, 100);
         byte[] testArray = testBuf.toByteArray();
         for (int i = 0; i < src[0].length; i++) {
             assertEquals(src[0][i], testArray[i]);
@@ -473,7 +473,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                 }
                 return src[0].length == testBuf.size();
             }
-        }, 10000, 100);
+        }, 2000, 100);
         testArray = testBuf.toByteArray();
         for (int i = 0; i < src[1].length; i++) {
             assertEquals(src[1][i], testArray[i]);

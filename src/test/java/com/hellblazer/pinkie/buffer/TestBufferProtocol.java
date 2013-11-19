@@ -205,14 +205,14 @@ public class TestBufferProtocol {
             public boolean value() {
                 return clientConnect.get();
             }
-        }, 1000, 100);
+        }, 4000, 100);
 
         Utils.waitFor("Server never accepted", new Utils.Condition() {
             @Override
             public boolean value() {
                 return serverAccepted.get();
             }
-        }, 1000, 100);
+        }, 4000, 100);
     }
 
     private void waitForMessages(final AtomicBoolean clientMessageSignal,

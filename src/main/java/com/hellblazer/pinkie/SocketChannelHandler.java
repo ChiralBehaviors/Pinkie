@@ -54,6 +54,7 @@ public class SocketChannelHandler {
     private final SocketChannel   channel;
     private CommunicationsHandler eventHandler;
     private final ChannelHandler  handler;
+    private final int             index;
     private SocketChannelHandler  next;
     private final AtomicBoolean   open         = new AtomicBoolean(true);
     private SocketChannelHandler  previous;
@@ -63,12 +64,14 @@ public class SocketChannelHandler {
     final WriteHandler            writeHandler = new WriteHandler();
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
-                                ChannelHandler handler, SocketChannel channel) {
+                                ChannelHandler handler, SocketChannel channel,
+                                int index) {
         this.eventHandler = eventHandler;
         this.handler = handler;
         this.channel = channel;
-        selectForRead = handler.selectForRead(this);
-        selectForWrite = handler.selectForWrite(this);
+        this.index = index;
+        selectForRead = handler.selectForRead(index, this);
+        selectForWrite = handler.selectForWrite(index, this);
     }
 
     /**
@@ -89,7 +92,7 @@ public class SocketChannelHandler {
                               e);
                 }
             }
-            handler.wakeup();
+            handler.wakeup(index);
         }
     }
 
@@ -123,14 +126,14 @@ public class SocketChannelHandler {
      * Return the handler and select for read ready
      */
     public void selectForRead() {
-        handler.register(selectForRead);
+        handler.registerRead(index, selectForRead);
     }
 
     /**
      * Return the handler and select for read ready
      */
     public void selectForWrite() {
-        handler.register(selectForWrite);
+        handler.registerWrite(index, selectForWrite);
     }
 
     @Override
