@@ -91,10 +91,10 @@ public class SimpleCommHandler implements CommunicationsHandler {
         }
         try {
             ByteBuffer buffer = writes.get(0);
-            handler.get().getChannel().write(buffer);
             if (!buffer.hasRemaining()) {
                 writes.remove(0);
             } else {
+                handler.get().getChannel().write(buffer);
                 handler.get().selectForWrite();
             }
         } catch (IOException e) {
