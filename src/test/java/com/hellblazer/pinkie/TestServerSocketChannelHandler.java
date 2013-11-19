@@ -400,14 +400,14 @@ public class TestServerSocketChannelHandler extends TestCase {
             public boolean value() {
                 return factory.handlers.size() >= 1;
             }
-        }, 1000, 100);
+        }, 4000, 100);
         final SimpleCommHandler scHandler = factory.handlers.get(0);
         waitFor("Handler was not accepted", new Condition() {
             @Override
             public boolean value() {
                 return scHandler.accepted.get();
             }
-        }, 1000, 100);
+        }, 4000, 100);
 
         assertTrue(inbound.finishConnect());
 
@@ -448,7 +448,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                 }
                 return src[0].length == testBuf.size();
             }
-        }, 2000, 100);
+        }, 4000, 100);
         byte[] testArray = testBuf.toByteArray();
         for (int i = 0; i < src[0].length; i++) {
             assertEquals(src[0][i], testArray[i]);
@@ -472,7 +472,7 @@ public class TestServerSocketChannelHandler extends TestCase {
                 }
                 return src[0].length == testBuf.size();
             }
-        }, 2000, 100);
+        }, 4000, 100);
         testArray = testBuf.toByteArray();
         for (int i = 0; i < src[1].length; i++) {
             assertEquals(src[1][i], testArray[i]);
