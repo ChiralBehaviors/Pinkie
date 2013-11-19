@@ -54,16 +54,13 @@ public class ChannelHandler {
     private final ReentrantLock                 handlersLock  = new ReentrantLock();
     private volatile SocketChannelHandler       openHandlers;
     protected final AtomicBoolean               run           = new AtomicBoolean();
-    private final Thread[]                      readSelectorThreads;
-    private final Thread[]                      writeSelectorThreads;
+    private final Thread[]                      selectorThreads;
     protected final int                         selectTimeout = 1000;
     protected final ExecutorService             executor;
     protected final String                      name;
     protected final SocketOptions               options;
-    private final LinkedBlockingDeque<Runnable> readRegisters[];
-    private final LinkedBlockingDeque<Runnable> writeRegisters[];
-    private final Selector[]                    readSelectors;
-    private final Selector[]                    writeSelectors;
+    private final LinkedBlockingDeque<Runnable> registers[];
+    private final Selector[]                    selectors;
     private final AtomicInteger                 nextQueue     = new AtomicInteger();
 
     /**
@@ -107,33 +104,22 @@ public class ChannelHandler {
                                                String.format("selectorQueues must be > 0: %s",
                                                              selectorQueues));
         }
-        readSelectors = new Selector[selectorQueues];
-        writeSelectors = new Selector[selectorQueues];
-        readSelectorThreads = new Thread[selectorQueues];
-        writeSelectorThreads = new Thread[selectorQueues];
+        selectors = new Selector[selectorQueues];
+        selectorThreads = new Thread[selectorQueues];
         LinkedBlockingDeque<Runnable>[] regs = new LinkedBlockingDeque[selectorQueues];
-        writeRegisters = regs;
         regs = new LinkedBlockingDeque[selectorQueues];
-        readRegisters = regs;
+        registers = regs;
         this.executor = executor;
         options = socketOptions;
 
         for (int i = 0; i < selectorQueues; i++) {
-            readSelectorThreads[i] = new Thread(
-                                                readSelectorTask(i),
-                                                String.format("Read selector[%s (%s)]",
-                                                              name, i));
-            readSelectorThreads[i].setDaemon(true);
-            readSelectors[i] = Selector.open();
-            readRegisters[i] = new LinkedBlockingDeque<>();
-
-            writeSelectorThreads[i] = new Thread(
-                                                 writeSelectorTask(i),
-                                                 String.format("Write selector[%s (%s)]",
-                                                               name, i));
-            writeSelectorThreads[i].setDaemon(true);
-            writeSelectors[i] = Selector.open();
-            writeRegisters[i] = new LinkedBlockingDeque<>();
+            selectorThreads[i] = new Thread(
+                                            selectorTask(i),
+                                            String.format("Selector[%s (%s)]",
+                                                          name, i));
+            selectorThreads[i].setDaemon(true);
+            selectors[i] = Selector.open();
+            registers[i] = new LinkedBlockingDeque<>();
         }
     }
 
@@ -194,7 +180,7 @@ public class ChannelHandler {
 
     void registerConnect(final int index, final SocketChannel socketChannel,
                          final SocketChannelHandler handler) {
-        readRegisters[index].add(new Runnable() {
+        registers[index].add(new Runnable() {
             @Override
             public void run() {
                 if (log.isTraceEnabled()) {
@@ -203,11 +189,11 @@ public class ChannelHandler {
                 register(index, socketChannel, handler, SelectionKey.OP_CONNECT);
             }
         });
-        readWakeup(index);
+        wakeup(index);
     }
 
     int nextQueueIndex() {
-        return nextQueue.getAndIncrement() % readSelectors.length;
+        return nextQueue.getAndIncrement() % selectors.length;
     }
 
     public List<CommunicationsHandler> getOpenHandlers() {
@@ -263,42 +249,13 @@ public class ChannelHandler {
         }
     }
 
-    private Runnable writeSelectorTask(final int index) {
+    private Runnable selectorTask(final int index) {
         return new Runnable() {
             @Override
             public void run() {
                 while (run.get()) {
                     try {
-                        writeSelect(index);
-                    } catch (ClosedSelectorException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Channel closed [%s]", name),
-                                      e);
-                        }
-                        return;
-                    } catch (IOException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Error when selecting [%s]",
-                                                    name), e);
-                        }
-                        return;
-                    } catch (Throwable e) {
-                        log.error(String.format("Runtime exception when selecting [%s]",
-                                                name), e);
-                        return;
-                    }
-                }
-            }
-        };
-    }
-
-    private Runnable readSelectorTask(final int index) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                while (run.get()) {
-                    try {
-                        readSelect(index);
+                        select(index);
                     } catch (ClosedSelectorException e) {
                         if (log.isTraceEnabled()) {
                             log.trace(String.format("Channel closed [%s]", name),
@@ -406,14 +363,9 @@ public class ChannelHandler {
         }
     }
 
-    final void registerRead(int index, Runnable select) {
-        readRegisters[index].add(select);
-        readWakeup(index);
-    }
-
-    final void registerWrite(int index, Runnable select) {
-        writeRegisters[index].add(select);
-        writeWakeup(index);
+    final void register(int index, Runnable select) {
+        registers[index].add(select);
+        wakeup(index);
     }
 
     SelectionKey register(int index, SocketChannel channel,
@@ -421,24 +373,14 @@ public class ChannelHandler {
         assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
                                                      name);
         SelectionKey key = null;
-        Selector selector;
-        switch (operation) {
-            case SelectionKey.OP_CONNECT:
-                selector = readSelectors[index];
-                break;
-            case SelectionKey.OP_READ:
-                selector = readSelectors[index];
-                break;
-            case SelectionKey.OP_WRITE:
-                selector = writeSelectors[index];
-                break;
-            default:
-                throw new IllegalArgumentException(
-                                                   String.format("Inavlid operation %s",
-                                                                 operation));
-        }
+        Selector selector = selectors[index];
         try {
-            key = channel.register(selector, operation, handler);
+            key = channel.keyFor(selector);
+            if (key == null) {
+                key = channel.register(selector, operation, handler);
+            } else {
+                key.interestOps(key.interestOps() | operation);
+            }
         } catch (NullPointerException e) {
             // apparently the file descriptor can be nulled
             log.trace(String.format("anamalous null pointer exception [%s]",
@@ -453,32 +395,31 @@ public class ChannelHandler {
         return key;
     }
 
-    private void readSelect(int index) throws IOException {
+    private void select(int index) throws IOException {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Selecting for read [%s]", name));
+            log.trace(String.format("Selecting [%s]", name));
         }
 
-        Runnable register = readRegisters[index].pollFirst();
+        Runnable register = registers[index].pollFirst();
         while (register != null) {
             try {
                 register.run();
             } catch (Throwable e) {
-                log.error("Error when registering read [{}]", name, e);
+                log.error("Error when registering [{}]", name, e);
             }
-            register = readRegisters[index].pollFirst();
+            register = registers[index].pollFirst();
         }
 
-        int ready = readSelectors[index].select(selectTimeout);
+        int ready = selectors[index].select(selectTimeout);
 
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Selected %s read ready channels [%s]",
-                                    ready, name));
+            log.trace(String.format("Selected %s channels [%s]", ready, name));
         }
 
         // get an iterator over the set of selected keys
         Iterator<SelectionKey> selected;
         try {
-            selected = readSelectors[index].selectedKeys().iterator();
+            selected = selectors[index].selectedKeys().iterator();
         } catch (ClosedSelectorException e) {
             return;
         }
@@ -489,55 +430,13 @@ public class ChannelHandler {
             SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             SocketChannel channel = (SocketChannel) key.channel();
             if (key.isConnectable()) {
-                key.interestOps(0);
+                key.interestOps(key.interestOps() ^ SelectionKey.OP_CONNECT);
                 handleConnect(handler, channel);
             } else if (key.isReadable()) {
-                key.interestOps(0);
+                key.interestOps(key.interestOps() ^ SelectionKey.OP_READ);
                 handleRead(handler, channel);
-            } else {
-                log.error("Invalid selection key operation: {}", key);
-                continue;
-            }
-        }
-    }
-
-    private void writeSelect(int index) throws IOException {
-        if (log.isTraceEnabled()) {
-            log.trace(String.format("Selecting for write [%s]", name));
-        }
-
-        Runnable register = writeRegisters[index].pollFirst();
-        while (register != null) {
-            try {
-                register.run();
-            } catch (Throwable e) {
-                log.error("Error when registering write [{}]", name, e);
-            }
-            register = writeRegisters[index].pollFirst();
-        }
-
-        int ready = writeSelectors[index].select(selectTimeout);
-
-        if (log.isTraceEnabled()) {
-            log.trace(String.format("Selected %s write ready channels [%s]",
-                                    ready, name));
-        }
-
-        // get an iterator over the set of selected keys
-        Iterator<SelectionKey> selected;
-        try {
-            selected = writeSelectors[index].selectedKeys().iterator();
-        } catch (ClosedSelectorException e) {
-            return;
-        }
-
-        while (run.get() && selected.hasNext()) {
-            SelectionKey key = selected.next();
-            selected.remove();
-            SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
-            SocketChannel channel = (SocketChannel) key.channel();
-            if (key.isWritable()) {
-                key.interestOps(0);
+            } else if (key.isWritable()) {
+                key.interestOps(key.interestOps() ^ SelectionKey.OP_WRITE);
                 handleWrite(handler, channel);
             } else {
                 log.error("Invalid selection key operation: {}", key);
@@ -575,64 +474,34 @@ public class ChannelHandler {
     }
 
     void startService() {
-        for (Thread selectorThread : readSelectorThreads) {
+        for (Thread selectorThread : selectorThreads) {
             selectorThread.start();
         }
-        for (Thread selectorThread : writeSelectorThreads) {
-            selectorThread.start();
-        }
-        log.info(format("%s is started", name));
+        log.info(format("started [%s]", name));
     }
 
     void terminateService() {
-        for (Selector selector : writeSelectors) {
+        for (Selector selector : selectors) {
             selector.wakeup();
             try {
                 selector.close();
             } catch (IOException e) {
-                log.info(String.format("Error closing write selector [%s]",
-                                       name), e);
-            }
-        }
-        for (Selector selector : readSelectors) {
-            selector.wakeup();
-            try {
-                selector.close();
-            } catch (IOException e) {
-                log.info(String.format("Error closing read selector [%s]", name),
-                         e);
+                log.info(String.format("Error closing selector [%s]", name), e);
             }
         }
         closeOpenHandlers();
-        log.info(format("%s is terminated", name));
-    }
-
-    void writeWakeup(int index) {
-        try {
-            writeSelectors[index].wakeup();
-        } catch (NullPointerException e) {
-            // Bug in JRE
-            if (log.isTraceEnabled()) {
-                log.trace(String.format("Caught null pointer in selector wakeup [%s]",
-                                        name), e);
-            }
-        }
-    }
-
-    void readWakeup(int index) {
-        try {
-            readSelectors[index].wakeup();
-        } catch (NullPointerException e) {
-            // Bug in JRE
-            if (log.isTraceEnabled()) {
-                log.trace(String.format("Caught null pointer in selector wakeup [%s]",
-                                        name), e);
-            }
-        }
+        log.info(format("terminated [%s]", name));
     }
 
     void wakeup(int index) {
-        writeWakeup(index);
-        readWakeup(index);
+        try {
+            selectors[index].wakeup();
+        } catch (NullPointerException e) {
+            // Bug in JRE
+            if (log.isTraceEnabled()) {
+                log.trace(String.format("Caught null pointer in selector wakeup [%s]",
+                                        name), e);
+            }
+        }
     }
 }

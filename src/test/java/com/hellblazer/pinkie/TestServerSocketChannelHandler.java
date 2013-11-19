@@ -186,7 +186,6 @@ public class TestServerSocketChannelHandler extends TestCase {
         }, 2000, 100);
         assertEquals(1, factory.handlers.size());
         scHandler.selectForRead();
-        System.out.println("Closing socket");
         outbound.close();
         waitFor("Handler was not closed", new Condition() {
             @Override

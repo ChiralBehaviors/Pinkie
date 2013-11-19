@@ -12,5 +12,5 @@
   <root level="info">
     <appender-ref ref="STDERR" />
   </root>
-  <logger name="com.hellblazer" level="TRACE"/>
+  <logger name="com.hellblazer" level="INFO"/>
 </configuration>

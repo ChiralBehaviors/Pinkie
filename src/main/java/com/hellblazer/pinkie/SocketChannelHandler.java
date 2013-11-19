@@ -126,14 +126,14 @@ public class SocketChannelHandler {
      * Return the handler and select for read ready
      */
     public void selectForRead() {
-        handler.registerRead(index, selectForRead);
+        handler.register(index, selectForRead);
     }
 
     /**
      * Return the handler and select for read ready
      */
     public void selectForWrite() {
-        handler.registerWrite(index, selectForWrite);
+        handler.register(index, selectForWrite);
     }
 
     @Override

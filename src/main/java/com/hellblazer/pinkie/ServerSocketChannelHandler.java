@@ -231,14 +231,15 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         super.startService();
         try {
             server.register(acceptSelector, SelectionKey.OP_ACCEPT);
-            log.info(String.format("Server socket registered for accept [%s]",
+            log.info(String.format("server socket registered for accept [%s]",
                                    name));
         } catch (ClosedChannelException e) {
             log.error(String.format("Unable to register accept on %s [%s]",
                                     server, name), e);
         }
         acceptThread.start();
-        log.info(format("%s local address: %s", name, getLocalAddress()));
+        log.info(format("local address is %s for [%s]", name,
+                        getLocalAddress(), name));
     }
 
     /* (non-Javadoc)
