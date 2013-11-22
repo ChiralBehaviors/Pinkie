@@ -85,7 +85,7 @@ public class TestBufferProtocol {
         final AtomicBoolean clientMessageReceived = new AtomicBoolean();
         final AtomicBoolean serverMessageReceived = new AtomicBoolean();
 
-        BufferProtocolHandler client = mock(BufferProtocolHandler.class);
+        final BufferProtocolHandler client = mock(BufferProtocolHandler.class);
         signalConnect(clientConnect, client);
         signalMessageReceived(clientMessageReceived, client);
         ByteBuffer clientReadBuffer = ByteBuffer.allocate(targetSize);
@@ -93,8 +93,14 @@ public class TestBufferProtocol {
         when(client.newReadBuffer()).thenReturn(clientReadBuffer);
         when(client.newWriteBuffer()).thenReturn(ByteBuffer.wrap(clientMessage));
         constructClientHandler(socketOptions);
-        BufferProtocolFactory clientProtocolFactory = new BufferProtocolFactory(
-                                                                                client);
+        BufferProtocolFactory clientProtocolFactory = new BufferProtocolFactory() {
+
+            @Override
+            public BufferProtocolHandler constructBufferProtocolHandler() {
+                return client;
+            }
+
+        };
 
         BufferProtocolHandler server = mock(BufferProtocolHandler.class);
         signalAccept(serverAccepted, server);
@@ -144,8 +150,8 @@ public class TestBufferProtocol {
     }
 
     private void constructServerHandler(SocketOptions socketOptions,
-                                        BufferProtocolHandler server)
-                                                                     throws IOException {
+                                        final BufferProtocolHandler server)
+                                                                           throws IOException {
         serverHandler = new ServerSocketChannelHandler(
                                                        "Server",
                                                        socketOptions,
@@ -153,8 +159,13 @@ public class TestBufferProtocol {
                                                                              "127.0.0.1",
                                                                              0),
                                                        Executors.newCachedThreadPool(),
-                                                       new BufferProtocolFactory(
-                                                                                 server));
+                                                       new BufferProtocolFactory() {
+
+                                                           @Override
+                                                           public BufferProtocolHandler constructBufferProtocolHandler() {
+                                                               return server;
+                                                           }
+                                                       });
     }
 
     private void signalAccept(final AtomicBoolean serverAccepted,

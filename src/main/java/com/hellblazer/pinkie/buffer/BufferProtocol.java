@@ -209,12 +209,12 @@ final public class BufferProtocol {
     }
 
     private CommsHandler                handler;
-    private final ByteBuffer            readBuffer;
-    private final ByteBuffer            writeBuffer;
-    private boolean                     writeFullBuffer = true;
-    private boolean                     readFullBuffer  = true;
-
     private final BufferProtocolHandler protocol;
+    private final ByteBuffer            readBuffer;
+    private boolean                     readFullBuffer  = true;
+    private final ByteBuffer            writeBuffer;
+
+    private boolean                     writeFullBuffer = true;
 
     public BufferProtocol(BufferProtocolHandler protocol) {
         readBuffer = protocol.newReadBuffer();

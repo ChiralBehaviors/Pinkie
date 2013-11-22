@@ -15,13 +15,8 @@ import com.hellblazer.pinkie.CommunicationsHandlerFactory;
  * @author hhildebrand
  * 
  */
-public class BufferProtocolFactory implements CommunicationsHandlerFactory {
-
-    private final BufferProtocolHandler protocol;
-
-    public BufferProtocolFactory(BufferProtocolHandler protocol) {
-        this.protocol = protocol;
-    }
+abstract public class BufferProtocolFactory implements
+        CommunicationsHandlerFactory {
 
     public void connect(InetSocketAddress remoteAddress, ChannelHandler server)
                                                                                throws IOException {
@@ -29,12 +24,14 @@ public class BufferProtocolFactory implements CommunicationsHandlerFactory {
         server.connectTo(remoteAddress, handler);
     }
 
+    abstract public BufferProtocolHandler constructBufferProtocolHandler();
+
     @Override
     public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
         return constructHandler();
     }
 
     private CommunicationsHandler constructHandler() {
-        return new BufferProtocol(protocol).getHandler();
+        return new BufferProtocol(constructBufferProtocolHandler()).getHandler();
     }
 }
