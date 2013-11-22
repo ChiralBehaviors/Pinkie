@@ -49,19 +49,19 @@ public class SocketChannelHandler {
         }
     }
 
-    private static final Logger   log          = LoggerFactory.getLogger(SocketChannelHandler.class);
+    private static final Logger         log          = LoggerFactory.getLogger(SocketChannelHandler.class);
 
-    private final SocketChannel   channel;
-    private CommunicationsHandler eventHandler;
-    private final ChannelHandler  handler;
-    private final int             index;
-    private SocketChannelHandler  next;
-    private final AtomicBoolean   open         = new AtomicBoolean(true);
-    private SocketChannelHandler  previous;
-    private final Runnable        selectForRead;
-    private final Runnable        selectForWrite;
-    final ReadHandler             readHandler  = new ReadHandler();
-    final WriteHandler            writeHandler = new WriteHandler();
+    private final SocketChannel         channel;
+    private final CommunicationsHandler eventHandler;
+    private final ChannelHandler        handler;
+    private final int                   index;
+    private SocketChannelHandler        next;
+    private final AtomicBoolean         open         = new AtomicBoolean(true);
+    private SocketChannelHandler        previous;
+    private final Runnable              selectForRead;
+    private final Runnable              selectForWrite;
+    final ReadHandler                   readHandler  = new ReadHandler();
+    final WriteHandler                  writeHandler = new WriteHandler();
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel,
