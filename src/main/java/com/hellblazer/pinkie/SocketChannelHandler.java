@@ -96,41 +96,31 @@ public class SocketChannelHandler {
         }
     }
 
+    /**
+     * 
+     * @return the underlying SocketChannel for this handler
+     */
     public SocketChannel getChannel() {
         return channel;
     }
 
-    public CommunicationsHandler getHandler() {
-        return eventHandler;
-    }
-
     /**
-     * Answer true if the receiver is open
      * 
-     * @return
+     * @return true if the receiver is open
      */
     public boolean open() {
         return open.get();
     }
 
     /**
-     * Reset the event handler
-     * 
-     * @param handler
-     */
-    public void resetHandler(CommunicationsHandler handler) {
-        eventHandler = handler;
-    }
-
-    /**
-     * Return the handler and select for read ready
+     * Select for read ready
      */
     public void selectForRead() {
         handler.register(index, selectForRead);
     }
 
     /**
-     * Return the handler and select for read ready
+     * Select for write ready
      */
     public void selectForWrite() {
         handler.register(index, selectForWrite);
@@ -173,6 +163,10 @@ public class SocketChannelHandler {
             next.previous = previous;
         }
         next = previous = null;
+    }
+
+    CommunicationsHandler getHandler() {
+        return eventHandler;
     }
 
     /**
