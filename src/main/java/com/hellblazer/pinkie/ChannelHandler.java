@@ -124,7 +124,7 @@ public class ChannelHandler {
     }
 
     /**
-     * Close the open handlers managed by the receiver
+     * Close the open communication handlers managed by the receiver
      */
     public void closeOpenHandlers() {
         final Lock myLock = handlersLock;
@@ -196,6 +196,10 @@ public class ChannelHandler {
         return nextQueue.getAndIncrement() % selectors.length;
     }
 
+    /**
+     * 
+     * @return the list of open handlers the receiver manages
+     */
     public List<CommunicationsHandler> getOpenHandlers() {
         LinkedList<CommunicationsHandler> handlers = new LinkedList<CommunicationsHandler>();
         final Lock myLock = handlersLock;

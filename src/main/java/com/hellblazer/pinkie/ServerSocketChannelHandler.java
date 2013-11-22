@@ -58,6 +58,20 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     private final Thread                       acceptThread;
     private final Selector                     acceptSelector;
 
+    /**
+     * Construct a new server socket channel handler with one selection queue
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param channel
+     *            - the server socket channel
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
@@ -67,6 +81,22 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         this(handlerName, channel, socketOptions, commsExec, factory, 1);
     }
 
+    /**
+     * Construct a new server socket channel handler
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param channel
+     *            - the server socket channel
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @param selectorQueues
+     *            - the number of selectors to use
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
     public ServerSocketChannelHandler(String handlerName,
                                       ServerSocketChannel channel,
                                       SocketOptions socketOptions,
@@ -88,6 +118,22 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         acceptSelector = Selector.open();
     }
 
+    /**
+     * Construct a new server socket channel handler with one selection queue
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param endpointAddress
+     *            - the internet address and port to use for the server socket
+     *            channel
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector or
+     *             binding the server socket to the address
+     */
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
@@ -98,6 +144,24 @@ public class ServerSocketChannelHandler extends ChannelHandler {
 
     }
 
+    /**
+     * Construct a new server socket channel handler
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param endpointAddress
+     *            - the internet address and port to use for the server socket
+     *            channel
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @param selectorQueues
+     *            - the number of selectors to use
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector or
+     *             binding the server socket to the address
+     */
     public ServerSocketChannelHandler(String handlerName,
                                       SocketOptions socketOptions,
                                       InetSocketAddress endpointAddress,
@@ -109,9 +173,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
     }
 
     /**
-     * Answer the local address of the endpoint
-     * 
-     * @return
+     * @return the local address of the endpoint
      */
     public InetSocketAddress getLocalAddress() {
 
