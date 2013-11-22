@@ -113,8 +113,7 @@ public class ChannelHandler {
         options = socketOptions;
 
         for (int i = 0; i < selectorQueues; i++) {
-            selectorThreads[i] = new Thread(
-                                            selectorTask(i),
+            selectorThreads[i] = new Thread(selectorTask(i),
                                             String.format("Selector[%s (%s)]",
                                                           name, i));
             selectorThreads[i].setDaemon(true);
@@ -178,24 +177,6 @@ public class ChannelHandler {
         return;
     }
 
-    void registerConnect(final int index, final SocketChannel socketChannel,
-                         final SocketChannelHandler handler) {
-        registers[index].add(new Runnable() {
-            @Override
-            public void run() {
-                if (log.isTraceEnabled()) {
-                    log.trace("registering connect for {}", socketChannel);
-                }
-                register(index, socketChannel, handler, SelectionKey.OP_CONNECT);
-            }
-        });
-        wakeup(index);
-    }
-
-    int nextQueueIndex() {
-        return nextQueue.getAndIncrement() % selectors.length;
-    }
-
     /**
      * 
      * @return the list of open handlers the receiver manages
@@ -250,63 +231,6 @@ public class ChannelHandler {
     public void terminate() {
         if (run.compareAndSet(true, false)) {
             terminateService();
-        }
-    }
-
-    private Runnable selectorTask(final int index) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                while (run.get()) {
-                    try {
-                        select(index);
-                    } catch (ClosedSelectorException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Channel closed [%s]", name),
-                                      e);
-                        }
-                        return;
-                    } catch (IOException e) {
-                        if (log.isTraceEnabled()) {
-                            log.trace(String.format("Error when selecting [%s]",
-                                                    name), e);
-                        }
-                        return;
-                    } catch (Throwable e) {
-                        log.error(String.format("Runtime exception when selecting [%s]",
-                                                name), e);
-                        return;
-                    }
-                }
-            }
-        };
-    }
-
-    void addHandler(SocketChannelHandler handler) {
-        final Lock myLock = handlersLock;
-        myLock.lock();
-        try {
-            if (openHandlers == null) {
-                openHandlers = handler;
-            } else {
-                openHandlers.link(handler);
-            }
-        } finally {
-            myLock.unlock();
-        }
-    }
-
-    void closeHandler(SocketChannelHandler handler) {
-        final Lock myLock = handlersLock;
-        myLock.lock();
-        try {
-            if (openHandlers == null) {
-                openHandlers = handler.next();
-            } else {
-                handler.delink();
-            }
-        } finally {
-            myLock.unlock();
         }
     }
 
@@ -367,38 +291,6 @@ public class ChannelHandler {
         }
     }
 
-    final void register(int index, Runnable select) {
-        registers[index].add(select);
-        wakeup(index);
-    }
-
-    SelectionKey register(int index, SocketChannel channel,
-                          SocketChannelHandler handler, int operation) {
-        assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
-                                                     name);
-        SelectionKey key = null;
-        Selector selector = selectors[index];
-        try {
-            key = channel.keyFor(selector);
-            if (key == null) {
-                key = channel.register(selector, operation, handler);
-            } else {
-                key.interestOps(key.interestOps() | operation);
-            }
-        } catch (NullPointerException e) {
-            // apparently the file descriptor can be nulled
-            log.trace(String.format("anamalous null pointer exception [%s]",
-                                    name), e);
-        } catch (ClosedChannelException e) {
-            if (log.isTraceEnabled()) {
-                log.trace(String.format("channel has been closed [%s]", name),
-                          e);
-            }
-            handler.close();
-        }
-        return key;
-    }
-
     private void select(int index) throws IOException {
         if (log.isTraceEnabled()) {
             log.trace(String.format("Selecting [%s]", name));
@@ -447,6 +339,113 @@ public class ChannelHandler {
                 continue;
             }
         }
+    }
+
+    private Runnable selectorTask(final int index) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                while (run.get()) {
+                    try {
+                        select(index);
+                    } catch (ClosedSelectorException e) {
+                        if (log.isTraceEnabled()) {
+                            log.trace(String.format("Channel closed [%s]", name),
+                                      e);
+                        }
+                        return;
+                    } catch (IOException e) {
+                        if (log.isTraceEnabled()) {
+                            log.trace(String.format("Error when selecting [%s]",
+                                                    name), e);
+                        }
+                        return;
+                    } catch (Throwable e) {
+                        log.error(String.format("Runtime exception when selecting [%s]",
+                                                name), e);
+                        return;
+                    }
+                }
+            }
+        };
+    }
+
+    void addHandler(SocketChannelHandler handler) {
+        final Lock myLock = handlersLock;
+        myLock.lock();
+        try {
+            if (openHandlers == null) {
+                openHandlers = handler;
+            } else {
+                openHandlers.link(handler);
+            }
+        } finally {
+            myLock.unlock();
+        }
+    }
+
+    void closeHandler(SocketChannelHandler handler) {
+        final Lock myLock = handlersLock;
+        myLock.lock();
+        try {
+            if (openHandlers == null) {
+                openHandlers = handler.next();
+            } else {
+                handler.delink();
+            }
+        } finally {
+            myLock.unlock();
+        }
+    }
+
+    int nextQueueIndex() {
+        return nextQueue.getAndIncrement() % selectors.length;
+    }
+
+    final void register(int index, Runnable select) {
+        registers[index].add(select);
+        wakeup(index);
+    }
+
+    SelectionKey register(int index, SocketChannel channel,
+                          SocketChannelHandler handler, int operation) {
+        assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
+                                                     name);
+        SelectionKey key = null;
+        Selector selector = selectors[index];
+        try {
+            key = channel.keyFor(selector);
+            if (key == null) {
+                key = channel.register(selector, operation, handler);
+            } else {
+                key.interestOps(key.interestOps() | operation);
+            }
+        } catch (NullPointerException e) {
+            // apparently the file descriptor can be nulled
+            log.trace(String.format("anamalous null pointer exception [%s]",
+                                    name), e);
+        } catch (ClosedChannelException e) {
+            if (log.isTraceEnabled()) {
+                log.trace(String.format("channel has been closed [%s]", name),
+                          e);
+            }
+            handler.close();
+        }
+        return key;
+    }
+
+    void registerConnect(final int index, final SocketChannel socketChannel,
+                         final SocketChannelHandler handler) {
+        registers[index].add(new Runnable() {
+            @Override
+            public void run() {
+                if (log.isTraceEnabled()) {
+                    log.trace("registering connect for {}", socketChannel);
+                }
+                register(index, socketChannel, handler, SelectionKey.OP_CONNECT);
+            }
+        });
+        wakeup(index);
     }
 
     final Runnable selectForRead(final int index,

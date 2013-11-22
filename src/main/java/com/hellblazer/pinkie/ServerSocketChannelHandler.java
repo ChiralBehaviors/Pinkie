@@ -211,6 +211,16 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         };
     }
 
+    private void dispatch(SelectionKey key) throws IOException {
+        if (key.isAcceptable()) {
+            handleAccept(key);
+        } else {
+            throw new IllegalStateException(
+                                            String.format("Invalid selection key for accept: %s",
+                                                          key));
+        }
+    }
+
     private void select() throws IOException {
         if (log.isTraceEnabled()) {
             log.trace(String.format("Selecting for accept [%s]", name));
@@ -236,16 +246,6 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                     log.trace(format("Cancelled Key: %s [%s]", key, name), e);
                 }
             }
-        }
-    }
-
-    private void dispatch(SelectionKey key) throws IOException {
-        if (key.isAcceptable()) {
-            handleAccept(key);
-        } else {
-            throw new IllegalStateException(
-                                            String.format("Invalid selection key for accept: %s",
-                                                          key));
         }
     }
 
