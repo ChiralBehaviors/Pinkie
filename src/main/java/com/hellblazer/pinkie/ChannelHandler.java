@@ -29,11 +29,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,16 +54,17 @@ public class ChannelHandler {
     private final static Logger                 log           = LoggerFactory.getLogger(ChannelHandler.class);
 
     private final ReentrantLock                 handlersLock  = new ReentrantLock();
+    private final AtomicInteger                 nextQueue     = new AtomicInteger();
     private volatile SocketChannelHandler       openHandlers;
-    protected final AtomicBoolean               run           = new AtomicBoolean();
+    private final LinkedBlockingDeque<Runnable> registers[];
+    private final Selector[]                    selectors;
     private final Thread[]                      selectorThreads;
-    protected final int                         selectTimeout = 1000;
+    private final SSLContext                    sslContext;
     protected final ExecutorService             executor;
     protected final String                      name;
     protected final SocketOptions               options;
-    private final LinkedBlockingDeque<Runnable> registers[];
-    private final Selector[]                    selectors;
-    private final AtomicInteger                 nextQueue     = new AtomicInteger();
+    protected final AtomicBoolean               run           = new AtomicBoolean();
+    protected final int                         selectTimeout = 1000;
 
     /**
      * Construct a new channel handler with a single selector queue
@@ -77,7 +80,7 @@ public class ChannelHandler {
      */
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor) throws IOException {
-        this(handlerName, socketOptions, executor, 1);
+        this(handlerName, socketOptions, executor, null);
     }
 
     /**
@@ -94,10 +97,32 @@ public class ChannelHandler {
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
-    @SuppressWarnings("unchecked")
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, int selectorQueues)
                                                                        throws IOException {
+        this(handlerName, socketOptions, executor, selectorQueues, null);
+    }
+
+    /**
+     * Construct a new channel handler
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @param selectorQueues
+     *            - the number of selectors to use
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
+    @SuppressWarnings("unchecked")
+    public ChannelHandler(String handlerName, SocketOptions socketOptions,
+                          ExecutorService executor, int selectorQueues,
+                          SSLContext sslContext) throws IOException {
         name = handlerName;
         if (selectorQueues <= 0) {
             throw new IllegalArgumentException(
@@ -111,6 +136,7 @@ public class ChannelHandler {
         registers = regs;
         this.executor = executor;
         options = socketOptions;
+        this.sslContext = sslContext;
 
         for (int i = 0; i < selectorQueues; i++) {
             selectorThreads[i] = new Thread(selectorTask(i),
@@ -120,6 +146,26 @@ public class ChannelHandler {
             selectors[i] = Selector.open();
             registers[i] = new LinkedBlockingDeque<>();
         }
+    }
+
+    /**
+     * Construct a new channel handler with a single selector queue
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
+    public ChannelHandler(String handlerName, SocketOptions socketOptions,
+                          ExecutorService executor, SSLContext sslContext)
+                                                                          throws IOException {
+        this(handlerName, socketOptions, executor, 1, sslContext);
     }
 
     /**
@@ -155,13 +201,22 @@ public class ChannelHandler {
                                                              throws IOException {
         assert remoteAddress != null : "Remote address cannot be null";
         assert eventHandler != null : "Handler cannot be null";
-        final int index = nextQueueIndex();
-        final SocketChannel socketChannel = SocketChannel.open();
-        final SocketChannelHandler handler = new SocketChannelHandler(
-                                                                      eventHandler,
-                                                                      ChannelHandler.this,
-                                                                      socketChannel,
-                                                                      index);
+        int index = nextQueueIndex();
+        SocketChannel socketChannel = SocketChannel.open();
+        SocketChannelHandler handler;
+        if (sslContext == null) {
+            handler = new SocketChannelHandler(eventHandler,
+                                               ChannelHandler.this,
+                                               socketChannel, index);
+        } else {
+            SSLEngine engine = sslContext.createSSLEngine();
+            engine.setUseClientMode(true);
+            handler = new TlsSocketChannelHandler(eventHandler, this,
+                                                  socketChannel, index, engine,
+                                                  false);
+            socketChannel = new TlsSocketChannel(
+                                                 (TlsSocketChannelHandler) handler);
+        }
         options.configure(socketChannel.socket());
         addHandler(handler);
         socketChannel.configureBlocking(false);
@@ -250,45 +305,7 @@ public class ChannelHandler {
         if (log.isTraceEnabled()) {
             log.trace(String.format("Dispatching connected action [%s]", name));
         }
-        try {
-            executor.execute(handler.connectHandler());
-        } catch (RejectedExecutionException e) {
-            if (log.isInfoEnabled()) {
-                log.info(String.format("too busy to execute connect handling [%s] of [%s]",
-                                       name, handler.getChannel()));
-            }
-            handler.close();
-        }
-    }
-
-    private void handleRead(SocketChannelHandler handler, SocketChannel channel) {
-        if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling read [%s]", name));
-        }
-        try {
-            executor.execute(handler.readHandler);
-        } catch (RejectedExecutionException e) {
-            if (log.isInfoEnabled()) {
-                log.info(String.format("too busy to execute read handling [%s], reselecting [%s]",
-                                       name, handler.getChannel()));
-            }
-            handler.selectForRead();
-        }
-    }
-
-    private void handleWrite(SocketChannelHandler handler, SocketChannel channel) {
-        if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling write [%s]", name));
-        }
-        try {
-            executor.execute(handler.writeHandler);
-        } catch (RejectedExecutionException e) {
-            if (log.isInfoEnabled()) {
-                log.info(String.format("too busy to execute write handling [%s], reselecting [%s]",
-                                       name, handler.getChannel()));
-            }
-            handler.selectForWrite();
-        }
+        handler.handleConnect();
     }
 
     private void select(int index) throws IOException {
@@ -330,10 +347,10 @@ public class ChannelHandler {
                 handleConnect(handler, channel);
             } else if (key.isReadable()) {
                 key.interestOps(key.interestOps() ^ SelectionKey.OP_READ);
-                handleRead(handler, channel);
+                handler.handleRead();
             } else if (key.isWritable()) {
                 key.interestOps(key.interestOps() ^ SelectionKey.OP_WRITE);
-                handleWrite(handler, channel);
+                handler.handleWrite();
             } else {
                 log.error("Invalid selection key operation: {}", key);
                 continue;
@@ -396,6 +413,10 @@ public class ChannelHandler {
         } finally {
             myLock.unlock();
         }
+    }
+
+    void execute(Runnable task) {
+        executor.execute(task);
     }
 
     int nextQueueIndex() {

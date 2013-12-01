@@ -20,6 +20,7 @@ import static java.lang.String.format;
 import java.io.IOException;
 import java.net.Socket;
 import java.nio.channels.SocketChannel;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -51,17 +52,17 @@ public class SocketChannelHandler {
 
     private static final Logger         log          = LoggerFactory.getLogger(SocketChannelHandler.class);
 
-    private final SocketChannel         channel;
     private final CommunicationsHandler eventHandler;
-    private final ChannelHandler        handler;
     private final int                   index;
     private SocketChannelHandler        next;
-    private final AtomicBoolean         open         = new AtomicBoolean(true);
     private SocketChannelHandler        previous;
+    private final ReadHandler           readHandler  = new ReadHandler();
     private final Runnable              selectForRead;
     private final Runnable              selectForWrite;
-    final ReadHandler                   readHandler  = new ReadHandler();
-    final WriteHandler                  writeHandler = new WriteHandler();
+    private final WriteHandler          writeHandler = new WriteHandler();
+    final SocketChannel                 channel;
+    final ChannelHandler                handler;
+    final AtomicBoolean                 open         = new AtomicBoolean(true);
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel,
@@ -83,7 +84,6 @@ public class SocketChannelHandler {
                 Exception e = new Exception("Socket close trace");
                 log.trace(format("Closing connection to %s", channel), e);
             }
-            eventHandler.closing();
             try {
                 channel.close();
             } catch (IOException e) {
@@ -93,6 +93,12 @@ public class SocketChannelHandler {
                 }
             }
             handler.wakeup(index);
+            handler.execute(new Runnable() {
+                @Override
+                public void run() {
+                    eventHandler.closing();
+                }
+            });
         }
     }
 
@@ -134,7 +140,7 @@ public class SocketChannelHandler {
                       socket.getRemoteSocketAddress());
     }
 
-    final Runnable acceptHandler() {
+    private Runnable acceptHandler() {
         return new Runnable() {
             @Override
             public void run() {
@@ -143,7 +149,7 @@ public class SocketChannelHandler {
         };
     }
 
-    final Runnable connectHandler() {
+    private Runnable connectHandler() {
         return new Runnable() {
             @Override
             public void run() {
@@ -167,6 +173,60 @@ public class SocketChannelHandler {
 
     CommunicationsHandler getHandler() {
         return eventHandler;
+    }
+
+    void handleAccept() {
+        try {
+            handler.execute(acceptHandler());
+        } catch (RejectedExecutionException e) {
+            if (log.isWarnEnabled()) {
+                log.warn(String.format("too busy to execute accept handling [%s] of [%s]",
+                                       handler.name, channel));
+            }
+            close();
+        }
+    }
+
+    void handleConnect() {
+        try {
+            handler.execute(connectHandler());
+        } catch (RejectedExecutionException e) {
+            if (log.isInfoEnabled()) {
+                log.info(String.format("too busy to execute connect handling [%s] of [%s]",
+                                       handler.name, channel));
+            }
+            close();
+        }
+    }
+
+    void handleRead() {
+        if (log.isTraceEnabled()) {
+            log.trace(String.format("Handling read [%s]", handler.name));
+        }
+        try {
+            handler.execute(readHandler);
+        } catch (RejectedExecutionException e) {
+            if (log.isInfoEnabled()) {
+                log.info(String.format("too busy to execute read handling [%s], reselecting [%s]",
+                                       handler.name, channel));
+            }
+            selectForRead();
+        }
+    }
+
+    void handleWrite() {
+        if (log.isTraceEnabled()) {
+            log.trace(String.format("Handling write [%s]", handler.name));
+        }
+        try {
+            handler.execute(writeHandler);
+        } catch (RejectedExecutionException e) {
+            if (log.isInfoEnabled()) {
+                log.info(String.format("too busy to execute write handling [%s], reselecting [%s]",
+                                       handler.name, channel));
+            }
+            selectForWrite();
+        }
     }
 
     /**

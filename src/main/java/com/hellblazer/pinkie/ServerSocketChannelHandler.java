@@ -29,7 +29,8 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
+
+import javax.net.ssl.SSLContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,10 +54,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         return server;
     }
 
+    private final Selector                     acceptSelector;
+    private final Thread                       acceptThread;
     private final CommunicationsHandlerFactory eventHandlerFactory;
     private final ServerSocketChannel          server;
-    private final Thread                       acceptThread;
-    private final Selector                     acceptSelector;
 
     /**
      * Construct a new server socket channel handler with one selection queue
@@ -67,8 +68,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the server socket channel
      * @param socketOptions
      *            - the socket options to configure new sockets
-     * @param executor
+     * @param commsExec
      *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
@@ -78,7 +81,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
-        this(handlerName, channel, socketOptions, commsExec, factory, 1);
+        this(handlerName, channel, socketOptions, commsExec, factory, 1, null);
     }
 
     /**
@@ -90,8 +93,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the server socket channel
      * @param socketOptions
      *            - the socket options to configure new sockets
-     * @param executor
+     * @param commsExec
      *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
      * @param selectorQueues
      *            - the number of selectors to use
      * @throws IOException
@@ -103,7 +108,38 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
                                       int selectorQueues) throws IOException {
-        super(handlerName, socketOptions, commsExec, selectorQueues);
+        this(handlerName, channel, socketOptions, commsExec, factory,
+             selectorQueues, null);
+    }
+
+    /**
+     * Construct a new server socket channel handler
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param channel
+     *            - the server socket channel
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param commsExec
+     *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
+     * @param selectorQueues
+     *            - the number of selectors to use
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
+    public ServerSocketChannelHandler(String handlerName,
+                                      ServerSocketChannel channel,
+                                      SocketOptions socketOptions,
+                                      ExecutorService commsExec,
+                                      CommunicationsHandlerFactory factory,
+                                      int selectorQueues, SSLContext sslContext)
+                                                                                throws IOException {
+        super(handlerName, socketOptions, commsExec, selectorQueues, sslContext);
         if (factory == null) {
             throw new IllegalArgumentException(
                                                "Event handler factory cannot be null");
@@ -123,13 +159,43 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      * 
      * @param handlerName
      *            - the String name used to mark the selection thread
+     * @param channel
+     *            - the server socket channel
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param commsExec
+     *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
+    public ServerSocketChannelHandler(String handlerName,
+                                      ServerSocketChannel channel,
+                                      SocketOptions socketOptions,
+                                      ExecutorService commsExec,
+                                      CommunicationsHandlerFactory factory,
+                                      SSLContext sslContext) throws IOException {
+        this(handlerName, channel, socketOptions, commsExec, factory, 1,
+             sslContext);
+    }
+
+    /**
+     * Construct a new server socket channel handler with one selection queue
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
      * @param socketOptions
      *            - the socket options to configure new sockets
      * @param endpointAddress
      *            - the internet address and port to use for the server socket
      *            channel
-     * @param executor
+     * @param commsExec
      *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
      * @throws IOException
      *             - if things go pear shaped when opening the selector or
      *             binding the server socket to the address
@@ -140,8 +206,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
-        this(handlerName, socketOptions, endpointAddress, commsExec, factory, 1);
-
+        this(handlerName, socketOptions, endpointAddress, commsExec, factory,
+             1, null);
     }
 
     /**
@@ -154,10 +220,14 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      * @param endpointAddress
      *            - the internet address and port to use for the server socket
      *            channel
-     * @param executor
+     * @param commsExec
      *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
      * @param selectorQueues
      *            - the number of selectors to use
+     * @param factory
+     *            - the communications handler factory
      * @throws IOException
      *             - if things go pear shaped when opening the selector or
      *             binding the server socket to the address
@@ -167,9 +237,40 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       InetSocketAddress endpointAddress,
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
-                                      int selectorQueues) throws IOException {
+                                      int selectorQueues, SSLContext sslContext)
+                                                                                throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
-             commsExec, factory, selectorQueues);
+             commsExec, factory, selectorQueues, sslContext);
+    }
+
+    /**
+     * Construct a new server socket channel handler with one selection queue
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param endpointAddress
+     *            - the internet address and port to use for the server socket
+     *            channel
+     * @param commsExec
+     *            - the executor service to handle I/O and selection events
+     * @param factory
+     *            - the communications handler factory
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector or
+     *             binding the server socket to the address
+     */
+    public ServerSocketChannelHandler(String handlerName,
+                                      SocketOptions socketOptions,
+                                      InetSocketAddress endpointAddress,
+                                      ExecutorService commsExec,
+                                      CommunicationsHandlerFactory factory,
+                                      SSLContext sslContext) throws IOException {
+        this(handlerName, socketOptions, endpointAddress, commsExec, factory,
+             1, sslContext);
     }
 
     /**
@@ -267,22 +368,13 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             accepted.close();
             return;
         }
-        final int index = nextQueueIndex();
-        final SocketChannelHandler handler = new SocketChannelHandler(
-                                                                      commHandler,
-                                                                      this,
-                                                                      accepted,
-                                                                      index);
+        SocketChannelHandler handler = new SocketChannelHandler(
+                                                                commHandler,
+                                                                this,
+                                                                accepted,
+                                                                nextQueueIndex());
         addHandler(handler);
-        try {
-            executor.execute(handler.acceptHandler());
-        } catch (RejectedExecutionException e) {
-            if (log.isWarnEnabled()) {
-                log.warn(String.format("too busy to execute accept handling [%s] of [%s]",
-                                       name, handler.getChannel()));
-            }
-            handler.close();
-        }
+        handler.handleAccept();
     }
 
     /* (non-Javadoc)
