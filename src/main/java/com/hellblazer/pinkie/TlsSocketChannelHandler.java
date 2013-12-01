@@ -32,11 +32,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * A socket channel handler that wraps and unwraps the data with TLS
+ * 
  * @author hhildebrand
  * 
  */
 public class TlsSocketChannelHandler extends SocketChannelHandler {
     private static final Logger                                    log            = LoggerFactory.getLogger(TlsSocketChannelHandler.class);
+    private final boolean                                          client;
     private ByteBuffer                                             dummy          = ByteBuffer.allocate(0);
     private final SSLEngine                                        engine;
     private final AtomicBoolean                                    handlerRead    = new AtomicBoolean();
@@ -47,9 +50,9 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     private final ByteBuffer                                       inboundEncrypted;
     private final ByteBuffer                                       outboundEncrypted;
     private boolean                                                pendingConnect = true;
-    private final boolean                                          server;
     private final SSLSession                                       session;
     private SSLEngineResult.Status                                 status;
+    private final TlsSocketChannel                                 tlsChannel;
 
     /**
      * @param eventHandler
@@ -60,10 +63,12 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     public TlsSocketChannelHandler(CommunicationsHandler eventHandler,
                                    ChannelHandler handler,
                                    SocketChannel channel, int index,
-                                   SSLEngine engine, boolean server) {
+                                   SSLEngine engine, boolean client) {
         super(eventHandler, handler, channel, index);
-        this.server = server;
+        this.tlsChannel = new TlsSocketChannel(this);
+        this.client = client;
         this.engine = engine;
+        this.engine.setUseClientMode(client);
         session = engine.getSession();
         inboundEncrypted = ByteBuffer.allocateDirect(session.getPacketBufferSize() + 50);
         inboundClear = ByteBuffer.allocateDirect(session.getApplicationBufferSize() + 50);
@@ -94,29 +99,25 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     }
 
     @Override
+    public SocketChannel getChannel() {
+        return tlsChannel;
+    }
+
+    @Override
     public void selectForRead() {
         if (handlerRead.compareAndSet(false, true)) {
             if (handshake) {
-                // Wait for handshake to finish
                 return;
             } else {
                 if (inboundClear.hasRemaining()) {
                     super.handleRead();
                 } else {
-                    // There is no decrypted data. But there may be some 
-                    // encrypted data.
                     if (inboundEncrypted.position() == 0
                         || status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                        // Must read more data since either there is no encrypted
-                        // data available or there is data available but not
-                        // enough to reassemble a packet.
                         super.selectForRead();
                     } else {
-                        // There is encrypted data available. It may or may not
-                        // be enough to reassemble a full packet. We have to check it.
                         try {
                             if (readAndUnwrap() == 0) {
-                                // Not possible to reassemble a full packet.
                                 super.selectForRead();
                             } else {
                                 super.handleRead();
@@ -147,13 +148,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
 
     private void doShutdown() {
         assert !outboundEncrypted.hasRemaining() : "Buffer was not empty.";
-        // Either shutdown was initiated now or we are on the middle
-        // of shutting down and this method was called after emptying 
-        // the out buffer
-
-        // If the engine has nothing else to do, close the socket. If
-        // this socket is dead because of an exception, close it
-        // immediately
         if (engine.isOutboundDone()) {
             log.trace(String.format("Outbound data is finished. Closing socket %s",
                                     channel));
@@ -171,8 +165,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
             SSLEngineResult res = engine.wrap(dummy, outboundEncrypted);
             log.info(String.format("Wrapping: %s : %s", channel, res));
         } catch (SSLException e) {
-            // Problems with the engine. Probably it is dead. So close 
-            // the socket and forget about it. 
             log.warn(String.format("Error during shutdown: %s", channel), e);
             close();
             return;
@@ -181,6 +173,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         try {
             flushData();
         } catch (IOException e) {
+            log.warn(String.format("Error during shutdown flush of data: %s",
+                                   channel), e);
             super.close();
         }
     }
@@ -189,10 +183,10 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         handshake = false;
         if (pendingConnect) {
             pendingConnect = false;
-            if (server) {
-                super.handleAccept();
-            } else {
+            if (client) {
                 super.handleConnect();
+            } else {
+                super.handleAccept();
             }
         }
     }
@@ -428,17 +422,14 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                 doShutdown();
 
             } else {
-                // The read interest is always set when this method is called                   
                 assert handlerRead.get() : "handleRead() called without read interest being set";
 
                 int bytesUnwrapped = readAndUnwrap();
                 if (bytesUnwrapped == -1) {
-                    // End of stream. 
                     assert engine.isInboundDone() : "End of stream but engine inbound is not closed";
                     close();
 
                 } else if (bytesUnwrapped == 0) {
-                    // Must read more data
                     super.selectForRead();
 
                 } else {
@@ -460,7 +451,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     void handleWrite() {
         try {
             if (flushData()) {
-                // The buffer was sent completely
                 if (handshake) {
                     handshake();
 
@@ -468,16 +458,10 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                     doShutdown();
 
                 } else {
-                    // If the listener is interested in writing, 
-                    // prepare to fire the event.
                     if (handlerWrite.compareAndSet(true, false)) {
                         super.handleWrite();
                     }
                 }
-            } else {
-                // There is still more data to be sent. Wait for another
-                // write event. Calling flush data already resulted in the
-                // write interest being reactivated.
             }
         } catch (IOException e) {
             close();
@@ -505,19 +489,10 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         if (handshake) {
             return 0;
         }
-
-        // Perhaps we should always try to read some data from
-        // the socket. In some situations, it might not be possible
-        // to unwrap some of the data stored on the buffers before
-        // reading more.
-
-        // Check if the stream is closed.
         if (engine.isInboundDone()) {
-            // We reached EOF.
             return -1;
         }
 
-        // First check if there is decrypted data waiting in the buffers
         if (!inboundClear.hasRemaining()) {
             int read = readAndUnwrap();
             if (read == -1 || read == 0) {
@@ -527,6 +502,9 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
 
         int totalRead = 0;
         for (ByteBuffer dst : dsts) {
+            if (!dst.hasRemaining()) {
+                continue;
+            }
             int available = inboundClear.remaining();
             dst.put(inboundClear);
             totalRead += available - inboundClear.remaining();
@@ -556,25 +534,19 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
      */
     long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
         if (handshake) {
-            // Not ready to write
             return 0;
         }
 
-        // First, check if we still have some data waiting to be sent.
         if (outboundEncrypted.hasRemaining()) {
             return 0;
         }
-        // There is no data left to be sent. Clear the buffer and get
-        // ready to encrypt more data.
+
         outboundEncrypted.clear();
         SSLEngineResult res = engine.wrap(srcs, outboundEncrypted);
         log.info("Wrapping:\n" + res);
-        // Prepare the buffer for reading
         outboundEncrypted.flip();
         flushData();
 
-        // Return the number of bytes read 
-        // from the source buffer
         return res.bytesConsumed();
     }
 }

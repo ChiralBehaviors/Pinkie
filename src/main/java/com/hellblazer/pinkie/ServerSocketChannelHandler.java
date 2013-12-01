@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,7 +82,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
-        this(handlerName, channel, socketOptions, commsExec, factory, 1, null);
+        this(handlerName, channel, socketOptions, commsExec, factory, 1, null,
+             null);
     }
 
     /**
@@ -109,7 +111,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       CommunicationsHandlerFactory factory,
                                       int selectorQueues) throws IOException {
         this(handlerName, channel, socketOptions, commsExec, factory,
-             selectorQueues, null);
+             selectorQueues, null, null);
     }
 
     /**
@@ -129,6 +131,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the number of selectors to use
      * @param sslContext
      *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
@@ -137,9 +141,12 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SocketOptions socketOptions,
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
-                                      int selectorQueues, SSLContext sslContext)
-                                                                                throws IOException {
-        super(handlerName, socketOptions, commsExec, selectorQueues, sslContext);
+                                      int selectorQueues,
+                                      SSLContext sslContext,
+                                      SSLParameters sslParameters)
+                                                                  throws IOException {
+        super(handlerName, socketOptions, commsExec, selectorQueues,
+              sslContext, sslParameters);
         if (factory == null) {
             throw new IllegalArgumentException(
                                                "Event handler factory cannot be null");
@@ -169,6 +176,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the communications handler factory
      * @param sslContext
      *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
@@ -177,9 +186,11 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SocketOptions socketOptions,
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
-                                      SSLContext sslContext) throws IOException {
+                                      SSLContext sslContext,
+                                      SSLParameters sslParameters)
+                                                                  throws IOException {
         this(handlerName, channel, socketOptions, commsExec, factory, 1,
-             sslContext);
+             sslContext, sslParameters);
     }
 
     /**
@@ -207,7 +218,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
         this(handlerName, socketOptions, endpointAddress, commsExec, factory,
-             1, null);
+             1, null, null);
     }
 
     /**
@@ -228,6 +239,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the number of selectors to use
      * @param factory
      *            - the communications handler factory
+     * @param sslContext
+     *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector or
      *             binding the server socket to the address
@@ -237,10 +252,12 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       InetSocketAddress endpointAddress,
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
-                                      int selectorQueues, SSLContext sslContext)
-                                                                                throws IOException {
+                                      int selectorQueues,
+                                      SSLContext sslContext,
+                                      SSLParameters sslParameters)
+                                                                  throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
-             commsExec, factory, selectorQueues, sslContext);
+             commsExec, factory, selectorQueues, sslContext, sslParameters);
     }
 
     /**
@@ -259,6 +276,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the communications handler factory
      * @param sslContext
      *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector or
      *             binding the server socket to the address
@@ -268,9 +287,11 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       InetSocketAddress endpointAddress,
                                       ExecutorService commsExec,
                                       CommunicationsHandlerFactory factory,
-                                      SSLContext sslContext) throws IOException {
+                                      SSLContext sslContext,
+                                      SSLParameters sslParameters)
+                                                                  throws IOException {
         this(handlerName, socketOptions, endpointAddress, commsExec, factory,
-             1, sslContext);
+             1, sslContext, sslParameters);
     }
 
     /**
@@ -368,11 +389,17 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             accepted.close();
             return;
         }
-        SocketChannelHandler handler = new SocketChannelHandler(
-                                                                commHandler,
-                                                                this,
-                                                                accepted,
-                                                                nextQueueIndex());
+        SocketChannelHandler handler;
+        if (sslContext == null) {
+            handler = new SocketChannelHandler(commHandler, this, accepted,
+                                               nextQueueIndex());
+        } else {
+            InetSocketAddress remoteAddress = (InetSocketAddress) accepted.getRemoteAddress();
+            handler = new TlsSocketChannelHandler(commHandler, this, accepted,
+                                                  nextQueueIndex(),
+                                                  createEngine(remoteAddress),
+                                                  false);
+        }
         addHandler(handler);
         handler.handleAccept();
     }

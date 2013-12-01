@@ -36,6 +36,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,8 @@ public class ChannelHandler {
     private final LinkedBlockingDeque<Runnable> registers[];
     private final Selector[]                    selectors;
     private final Thread[]                      selectorThreads;
-    private final SSLContext                    sslContext;
+    protected final SSLContext                  sslContext;
+    protected final SSLParameters               sslParameters;
     protected final ExecutorService             executor;
     protected final String                      name;
     protected final SocketOptions               options;
@@ -80,7 +82,7 @@ public class ChannelHandler {
      */
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor) throws IOException {
-        this(handlerName, socketOptions, executor, null);
+        this(handlerName, socketOptions, executor, null, null);
     }
 
     /**
@@ -100,7 +102,7 @@ public class ChannelHandler {
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, int selectorQueues)
                                                                        throws IOException {
-        this(handlerName, socketOptions, executor, selectorQueues, null);
+        this(handlerName, socketOptions, executor, selectorQueues, null, null);
     }
 
     /**
@@ -116,13 +118,16 @@ public class ChannelHandler {
      *            - the number of selectors to use
      * @param sslContext
      *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
     @SuppressWarnings("unchecked")
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, int selectorQueues,
-                          SSLContext sslContext) throws IOException {
+                          SSLContext sslContext, SSLParameters sslParameters)
+                                                                             throws IOException {
         name = handlerName;
         if (selectorQueues <= 0) {
             throw new IllegalArgumentException(
@@ -137,6 +142,7 @@ public class ChannelHandler {
         this.executor = executor;
         options = socketOptions;
         this.sslContext = sslContext;
+        this.sslParameters = sslParameters;
 
         for (int i = 0; i < selectorQueues; i++) {
             selectorThreads[i] = new Thread(selectorTask(i),
@@ -159,13 +165,15 @@ public class ChannelHandler {
      *            - the executor service to handle I/O and selection events
      * @param sslContext
      *            - the sslContext to use for SSL sessions
+     * @param sslParameters
+     *            - SSL parameters to use
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
-                          ExecutorService executor, SSLContext sslContext)
-                                                                          throws IOException {
-        this(handlerName, socketOptions, executor, 1, sslContext);
+                          ExecutorService executor, SSLContext sslContext,
+                          SSLParameters sslParamters) throws IOException {
+        this(handlerName, socketOptions, executor, 1, sslContext, sslParamters);
     }
 
     /**
@@ -209,13 +217,10 @@ public class ChannelHandler {
                                                ChannelHandler.this,
                                                socketChannel, index);
         } else {
-            SSLEngine engine = sslContext.createSSLEngine();
-            engine.setUseClientMode(true);
             handler = new TlsSocketChannelHandler(eventHandler, this,
-                                                  socketChannel, index, engine,
-                                                  false);
-            socketChannel = new TlsSocketChannel(
-                                                 (TlsSocketChannelHandler) handler);
+                                                  socketChannel, index,
+                                                  createEngine(remoteAddress),
+                                                  true);
         }
         options.configure(socketChannel.socket());
         addHandler(handler);
@@ -527,5 +532,14 @@ public class ChannelHandler {
                                         name), e);
             }
         }
+    }
+
+    SSLEngine createEngine(InetSocketAddress remoteAddress) {
+        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
+                                                      remoteAddress.getPort());
+        if (sslParameters != null) {
+            engine.setSSLParameters(sslParameters);
+        }
+        return engine;
     }
 }
