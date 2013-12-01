@@ -111,27 +111,24 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     @Override
     public void selectForRead() {
         if (handlerRead.compareAndSet(false, true)) {
-            if (handshake) {
-                return;
+            assert !handshake : "We should not be handshaking!";
+            if (inboundClear.hasRemaining()) {
+                super.handleRead();
             } else {
-                if (inboundClear.hasRemaining()) {
-                    super.handleRead();
+                if (inboundEncrypted.position() == 0
+                    || status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                    super.selectForRead();
                 } else {
-                    if (inboundEncrypted.position() == 0
-                        || status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                        super.selectForRead();
-                    } else {
-                        try {
-                            if (readAndUnwrap() == 0) {
-                                super.selectForRead();
-                            } else {
-                                super.handleRead();
-                            }
-                        } catch (IOException e) {
-                            log.error(String.format("Error unwrapping encrypted inbound data on: %s",
-                                                    channel), e);
-                            close();
+                    try {
+                        if (readAndUnwrap() == 0) {
+                            super.selectForRead();
+                        } else {
+                            super.handleRead();
                         }
+                    } catch (IOException e) {
+                        log.error(String.format("Error unwrapping encrypted inbound data on: %s",
+                                                channel), e);
+                        close();
                     }
                 }
             }
@@ -141,12 +138,9 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     @Override
     public void selectForWrite() {
         if (handlerWrite.compareAndSet(false, true)) {
-            if (handshake) {
-                return;
-            } else {
-                if (!outboundEncrypted.hasRemaining()) {
-                    super.selectForWrite();
-                }
+            assert !handshake : "We should not be handshaking!";
+            if (!outboundEncrypted.hasRemaining()) {
+                super.selectForWrite();
             }
         }
     }
@@ -225,14 +219,12 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                         finishInitialHandshake();
                     }
                     return;
-
                 case NEED_TASK:
                     Runnable task = engine.getDelegatedTask();
                     if (task != null) {
                         handler.execute(task(task));
                     }
                     return;
-
                 case NEED_UNWRAP:
                     try {
                         readAndUnwrap();
@@ -247,7 +239,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                         super.selectForRead();
                     }
                     return;
-
                 case NEED_WRAP:
                     if (outboundEncrypted.hasRemaining()) {
                         return;
@@ -280,7 +271,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                         return;
                     }
                     break;
-
                 case NOT_HANDSHAKING:
                     assert false : "doHandshake() should never reach the NOT_HANDSHAKING state";
                     return;
@@ -394,10 +384,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         try {
             if (handshake) {
                 handshake();
-
             } else if (!open.get()) {
                 doShutdown();
-
             } else {
                 assert handlerRead.get() : "handleRead() called without read interest being set";
 
@@ -405,10 +393,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                 if (bytesUnwrapped == -1) {
                     assert engine.isInboundDone() : "End of stream but engine inbound is not closed";
                     close();
-
                 } else if (bytesUnwrapped == 0) {
                     super.selectForRead();
-
                 } else {
                     handlerRead.set(false);
                     super.handleRead();
@@ -430,10 +416,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
             if (flushData()) {
                 if (handshake) {
                     handshake();
-
                 } else if (!open.get()) {
                     doShutdown();
-
                 } else {
                     if (handlerWrite.compareAndSet(true, false)) {
                         super.handleWrite();
@@ -463,9 +447,7 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
      * @throws IOException
      */
     long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
-        if (handshake) {
-            return 0;
-        }
+        assert !handshake : "We should not be handshaking!";
         if (engine.isInboundDone()) {
             return -1;
         }
@@ -510,9 +492,7 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
      * @throws IOException
      */
     long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
-        if (handshake) {
-            return 0;
-        }
+        assert !handshake : "We should not be handshaking!";
 
         if (outboundEncrypted.hasRemaining()) {
             return 0;
