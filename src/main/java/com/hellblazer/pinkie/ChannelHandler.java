@@ -27,6 +27,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,22 +52,22 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public class ChannelHandler {
+    private final static Logger           log           = LoggerFactory.getLogger(ChannelHandler.class);
 
-    private final static Logger                 log           = LoggerFactory.getLogger(ChannelHandler.class);
+    private final ExecutorService         executor;
+    private final ReentrantLock           handlersLock  = new ReentrantLock();
+    private final String                  name;
+    private final AtomicInteger           nextQueue     = new AtomicInteger();
+    private volatile SocketChannelHandler openHandlers;
+    private final BlockingDeque<Runnable> registers[];
+    private final Selector[]              selectors;
+    private final Thread[]                selectorThreads;
+    private final SSLContext              sslContext;
+    private final SSLParameters           sslParameters;
 
-    private final ReentrantLock                 handlersLock  = new ReentrantLock();
-    private final AtomicInteger                 nextQueue     = new AtomicInteger();
-    private volatile SocketChannelHandler       openHandlers;
-    private final LinkedBlockingDeque<Runnable> registers[];
-    private final Selector[]                    selectors;
-    private final Thread[]                      selectorThreads;
-    protected final SSLContext                  sslContext;
-    protected final SSLParameters               sslParameters;
-    protected final ExecutorService             executor;
-    protected final String                      name;
-    protected final SocketOptions               options;
-    protected final AtomicBoolean               run           = new AtomicBoolean();
-    protected final int                         selectTimeout = 1000;
+    final SocketOptions                   options;
+    final AtomicBoolean                   run           = new AtomicBoolean();
+    final int                             selectTimeout = 1000;
 
     /**
      * Construct a new channel handler with a single selector queue
@@ -212,15 +213,15 @@ public class ChannelHandler {
         int index = nextQueueIndex();
         SocketChannel socketChannel = SocketChannel.open();
         SocketChannelHandler handler;
-        if (sslContext == null) {
-            handler = new SocketChannelHandler(eventHandler,
-                                               ChannelHandler.this,
-                                               socketChannel, index);
-        } else {
+        if (isTls()) {
             handler = new TlsSocketChannelHandler(eventHandler, this,
                                                   socketChannel, index,
                                                   createEngine(remoteAddress),
                                                   true);
+        } else {
+            handler = new SocketChannelHandler(eventHandler,
+                                               ChannelHandler.this,
+                                               socketChannel, index);
         }
         options.configure(socketChannel.socket());
         addHandler(handler);
@@ -235,6 +236,10 @@ public class ChannelHandler {
         }
         registerConnect(index, socketChannel, handler);
         return;
+    }
+
+    public String getName() {
+        return name;
     }
 
     /**
@@ -274,6 +279,13 @@ public class ChannelHandler {
      */
     public boolean isRunning() {
         return run.get();
+    }
+
+    /**
+     * @return
+     */
+    public boolean isTls() {
+        return sslContext != null;
     }
 
     /**
@@ -420,6 +432,15 @@ public class ChannelHandler {
         }
     }
 
+    SSLEngine createEngine(InetSocketAddress remoteAddress) {
+        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
+                                                      remoteAddress.getPort());
+        if (sslParameters != null) {
+            engine.setSSLParameters(sslParameters);
+        }
+        return engine;
+    }
+
     void execute(Runnable task) {
         executor.execute(task);
     }
@@ -532,14 +553,5 @@ public class ChannelHandler {
                                         name), e);
             }
         }
-    }
-
-    SSLEngine createEngine(InetSocketAddress remoteAddress) {
-        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
-                                                      remoteAddress.getPort());
-        if (sslParameters != null) {
-            engine.setSSLParameters(sslParameters);
-        }
-        return engine;
     }
 }

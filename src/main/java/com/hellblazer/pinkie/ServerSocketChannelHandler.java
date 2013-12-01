@@ -156,7 +156,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         server.configureBlocking(false);
 
         acceptThread = new Thread(acceptSelectorTask(),
-                                  String.format("Selector[%s (accept)]", name));
+                                  String.format("Selector[%s (accept)]",
+                                                getName()));
         acceptThread.setDaemon(true);
         acceptSelector = Selector.open();
     }
@@ -311,22 +312,22 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                         select();
                     } catch (ClosedSelectorException e) {
                         if (log.isTraceEnabled()) {
-                            log.trace(String.format("Channel closed [%s]", name),
-                                      e);
+                            log.trace(String.format("Channel closed [%s]",
+                                                    getName()), e);
                         }
                     } catch (IOException e) {
                         if (log.isTraceEnabled()) {
                             log.trace(String.format("Error when selecting for accept [%s]",
-                                                    name), e);
+                                                    getName()), e);
                         }
                     } catch (CancelledKeyException e) {
                         if (log.isTraceEnabled()) {
                             log.trace(String.format("Error when selecting for accept [%s]",
-                                                    name), e);
+                                                    getName()), e);
                         }
                     } catch (Throwable e) {
                         log.error(String.format("Runtime exception when selecting for accept [%s]",
-                                                name), e);
+                                                getName()), e);
                     }
                 }
             }
@@ -345,7 +346,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
 
     private void select() throws IOException {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Selecting for accept [%s]", name));
+            log.trace(String.format("Selecting for accept [%s]", getName()));
         }
 
         acceptSelector.select(selectTimeout);
@@ -365,7 +366,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                 dispatch(key);
             } catch (CancelledKeyException e) {
                 if (log.isTraceEnabled()) {
-                    log.trace(format("Cancelled Key: %s [%s]", key, name), e);
+                    log.trace(format("Cancelled Key: %s [%s]", key, getName()),
+                              e);
                 }
             }
         }
@@ -373,7 +375,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
 
     void handleAccept(SelectionKey key) throws IOException {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling accept [%s]", name));
+            log.trace(String.format("Handling accept [%s]", getName()));
         }
         ServerSocketChannel server = (ServerSocketChannel) key.channel();
         final SocketChannel accepted = server.accept();
@@ -381,7 +383,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         accepted.configureBlocking(false);
         if (log.isTraceEnabled()) {
             log.trace(String.format("Connection accepted: %s [%s]", accepted,
-                                    name));
+                                    getName()));
         }
 
         CommunicationsHandler commHandler = eventHandlerFactory.createCommunicationsHandler(accepted);
@@ -390,15 +392,17 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             return;
         }
         SocketChannelHandler handler;
-        if (sslContext == null) {
+        if (isTls()) {
+            handler = new TlsSocketChannelHandler(
+                                                  commHandler,
+                                                  this,
+                                                  accepted,
+                                                  nextQueueIndex(),
+                                                  createEngine((InetSocketAddress) accepted.getRemoteAddress()),
+                                                  false);
+        } else {
             handler = new SocketChannelHandler(commHandler, this, accepted,
                                                nextQueueIndex());
-        } else {
-            InetSocketAddress remoteAddress = (InetSocketAddress) accepted.getRemoteAddress();
-            handler = new TlsSocketChannelHandler(commHandler, this, accepted,
-                                                  nextQueueIndex(),
-                                                  createEngine(remoteAddress),
-                                                  false);
         }
         addHandler(handler);
         handler.handleAccept();
@@ -413,14 +417,14 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         try {
             server.register(acceptSelector, SelectionKey.OP_ACCEPT);
             log.info(String.format("server socket registered for accept [%s]",
-                                   name));
+                                   getName()));
         } catch (ClosedChannelException e) {
             log.error(String.format("Unable to register accept on %s [%s]",
-                                    server, name), e);
+                                    server, getName()), e);
         }
         acceptThread.start();
-        log.info(format("local address is %s for [%s]", name,
-                        getLocalAddress(), name));
+        log.info(format("local address is %s for [%s]", getName(),
+                        getLocalAddress(), getName()));
     }
 
     /* (non-Javadoc)
@@ -431,13 +435,14 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         try {
             server.close();
         } catch (IOException e) {
-            log.trace(String.format("Cannot close: %s [%s]", server, name), e);
+            log.trace(String.format("Cannot close: %s [%s]", server, getName()),
+                      e);
         }
         acceptSelector.wakeup();
         try {
             acceptSelector.close();
         } catch (IOException e) {
-            log.info(String.format("Error closing selector [%s]", name), e);
+            log.info(String.format("Error closing selector [%s]", getName()), e);
         }
         super.terminateService();
     }

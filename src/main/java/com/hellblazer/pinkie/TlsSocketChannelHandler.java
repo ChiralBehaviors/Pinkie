@@ -65,7 +65,7 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                                    SocketChannel channel, int index,
                                    SSLEngine engine, boolean client) {
         super(eventHandler, handler, channel, index);
-        this.tlsChannel = new TlsSocketChannel(this);
+        tlsChannel = new TlsSocketChannel(this);
         this.client = client;
         this.engine = engine;
         this.engine.setUseClientMode(client);
@@ -101,6 +101,11 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     @Override
     public SocketChannel getChannel() {
         return tlsChannel;
+    }
+
+    @Override
+    public SSLSession getSslSession() {
+        return session;
     }
 
     @Override
@@ -191,28 +196,18 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         }
     }
 
-    /**
-     * Tries to write the data on the netData buffer to the socket. If not all
-     * data is sent, the write interest is activated with the selector thread.
-     * 
-     * @return True if all data was sent. False otherwise.
-     * @throws IOException
-     */
     private boolean flushData() throws IOException {
         assert outboundEncrypted.hasRemaining() : "Trying to write but netData buffer is empty";
         int written;
         try {
             written = channel.write(outboundEncrypted);
         } catch (IOException e) {
-            // Clear the buffer. If write failed, the socket is dead. Clearing
-            // the buffer indicates that no more write should be attempted.
             outboundEncrypted.position(outboundEncrypted.limit());
             log.error(String.format("Error flushing data: %s", channel), e);
             throw e;
         }
         log.trace(String.format("Wrote %s bytes to socket: ", written, channel));
         if (outboundEncrypted.hasRemaining()) {
-            // The buffer is not empty. Register again with the selector
             super.selectForWrite();
             return false;
         } else {
@@ -232,12 +227,11 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                     return;
 
                 case NEED_TASK:
-                    Runnable task;
-                    while ((task = engine.getDelegatedTask()) != null) {
+                    Runnable task = engine.getDelegatedTask();
+                    if (task != null) {
                         handler.execute(task(task));
                     }
-                    // The hs status was updated, so go back to the switch
-                    break;
+                    return;
 
                 case NEED_UNWRAP:
                     try {
@@ -248,10 +242,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                         close();
                         return;
                     }
-                    // During normal operation a call to readAndUnwrap() that results in underflow
-                    // does not cause the channel to activate read interest with the selector.
-                    // Therefore, if we are at the initial handshake, we must activate the read
-                    // insterest explicitily.
                     if (handshake
                         && status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
                         super.selectForRead();
@@ -259,13 +249,10 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                     return;
 
                 case NEED_WRAP:
-                    // First make sure that the out buffer is completely empty. Since we
-                    // cannot call wrap with data left on the buffer
                     if (outboundEncrypted.hasRemaining()) {
                         return;
                     }
 
-                    // Prepare to write
                     outboundEncrypted.clear();
                     SSLEngineResult res;
                     try {
@@ -282,11 +269,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                     hsStatus.set(engine.getHandshakeStatus());
                     outboundEncrypted.flip();
 
-                    // Now send the data and come back here only when 
-                    // the data is all sent
                     try {
                         if (!flushData()) {
-                            // There is data left to be send. Wait for it
                             return;
                         }
                     } catch (IOException e) {
@@ -295,9 +279,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                         close();
                         return;
                     }
-                    // All data was sent. Break from the switch but don't 
-                    // exit this method. It will loop again, since there may be more
-                    // operations that can be done without blocking.
                     break;
 
                 case NOT_HANDSHAKING:
@@ -309,50 +290,32 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
 
     private int readAndUnwrap() throws IOException {
         assert !inboundClear.hasRemaining() : "Application buffer not empty";
-        // No decrypted data left on the buffers.
-        // Try to read from the socket. There may be some data
-        // on the peerNetData buffer, but it might not be sufficient.       
         int bytesRead = channel.read(inboundEncrypted);
         log.trace(String.format("Read %s bytes from socket: %s", bytesRead,
                                 channel));
         if (bytesRead == -1) {
-            // We will not receive any more data. Closing the engine
-            // is a signal that the end of stream was reached.
             engine.closeInbound();
-            // EOF. But do we still have some useful data available? 
             if (inboundEncrypted.position() == 0
                 || status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                // Yup. Either the buffer is empty or it's in underflow,
-                // meaning that there is not enough data to reassemble a
-                // TLS packet. So we can return EOF.
                 return -1;
             }
-            // Although we reach EOF, we still have some data left to
-            // be decrypted. We must process it 
         }
 
-        // Prepare the application buffer to receive decrypted data
         inboundClear.clear();
 
-        // Prepare the net data for reading. 
         inboundEncrypted.flip();
         SSLEngineResult res;
         do {
             res = engine.unwrap(inboundEncrypted, inboundClear);
             log.info("Unwrapping:\n" + res);
-            // During an handshake renegotiation we might need to perform
-            // several unwraps to consume the handshake data.
         } while (res.getStatus() == SSLEngineResult.Status.OK
                  && res.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP
                  && res.bytesProduced() == 0);
 
-        // If the initial handshake finish after an unwrap, we must activate
-        // the application interestes, if any were set during the handshake
         if (res.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.FINISHED) {
             finishInitialHandshake();
         }
 
-        // If no data was produced, and the status is still ok, try to read once more
         if (inboundClear.position() == 0
             && res.getStatus() == SSLEngineResult.Status.OK
             && inboundEncrypted.hasRemaining()) {
@@ -360,33 +323,18 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
             log.info("Unwrapping:\n" + res);
         }
 
-        /*
-         * The status may be:
-         * OK - Normal operation
-         * OVERFLOW - Should never happen since the application buffer is 
-         *  sized to hold the maximum packet size.
-         * UNDERFLOW - Need to read more data from the socket. It's normal.
-         * CLOSED - The other peer closed the socket. Also normal.
-         */
         status = res.getStatus();
         hsStatus.set(engine.getHandshakeStatus());
-        // Should never happen, the peerAppData must always have enough space
-        // for an unwrap operation
         assert status != SSLEngineResult.Status.BUFFER_OVERFLOW : "Buffer should not overflow: "
                                                                   + res.toString();
 
-        // The handshake status here can be different than NOT_HANDSHAKING
-        // if the other peer closed the connection. So only check for it
-        // after testing for closure.
         if (status == SSLEngineResult.Status.CLOSED) {
             log.trace(String.format("%s is being closed by peer", channel));
             close();
             return -1;
         }
 
-        // Prepare the buffer to be written again.
         inboundEncrypted.compact();
-        // And the app buffer to be read.
         inboundClear.flip();
 
         HandshakeStatus handshakeStatus = hsStatus.get();
@@ -407,8 +355,37 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
             public void run() {
                 engineTask.run();
                 hsStatus.set(engine.getHandshakeStatus());
+                handshake();
             }
         };
+    }
+
+    @Override
+    void handleAccept() {
+        try {
+            engine.beginHandshake();
+        } catch (SSLException e) {
+            log.error(String.format("Error beginning handshake on %s", channel),
+                      e);
+            close();
+            return;
+        }
+        hsStatus.set(engine.getHandshakeStatus());
+        handshake();
+    }
+
+    @Override
+    void handleConnect() {
+        try {
+            engine.beginHandshake();
+        } catch (SSLException e) {
+            log.error(String.format("Error beginning handshake on %s", channel),
+                      e);
+            close();
+            return;
+        }
+        hsStatus.set(engine.getHandshakeStatus());
+        handshake();
     }
 
     @Override

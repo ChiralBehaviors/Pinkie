@@ -23,6 +23,8 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLSession;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,19 +52,20 @@ public class SocketChannelHandler {
         }
     }
 
-    private static final Logger         log          = LoggerFactory.getLogger(SocketChannelHandler.class);
+    private static final Logger           log          = LoggerFactory.getLogger(SocketChannelHandler.class);
 
-    private final CommunicationsHandler eventHandler;
-    private final int                   index;
-    private SocketChannelHandler        next;
-    private SocketChannelHandler        previous;
-    private final ReadHandler           readHandler  = new ReadHandler();
-    private final Runnable              selectForRead;
-    private final Runnable              selectForWrite;
-    private final WriteHandler          writeHandler = new WriteHandler();
-    final SocketChannel                 channel;
-    final ChannelHandler                handler;
-    final AtomicBoolean                 open         = new AtomicBoolean(true);
+    private final CommunicationsHandler   eventHandler;
+    private final int                     index;
+    private volatile SocketChannelHandler next;
+    private volatile SocketChannelHandler previous;
+    private final ReadHandler             readHandler  = new ReadHandler();
+    private final Runnable                selectForRead;
+    private final Runnable                selectForWrite;
+    private final WriteHandler            writeHandler = new WriteHandler();
+
+    final SocketChannel                   channel;
+    final ChannelHandler                  handler;
+    final AtomicBoolean                   open         = new AtomicBoolean(true);
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel,
@@ -108,6 +111,14 @@ public class SocketChannelHandler {
      */
     public SocketChannel getChannel() {
         return channel;
+    }
+
+    /**
+     * 
+     * @return the SSL session for the channel, null if not TLS
+     */
+    public SSLSession getSslSession() {
+        return null;
     }
 
     /**
@@ -181,7 +192,7 @@ public class SocketChannelHandler {
         } catch (RejectedExecutionException e) {
             if (log.isWarnEnabled()) {
                 log.warn(String.format("too busy to execute accept handling [%s] of [%s]",
-                                       handler.name, channel));
+                                       handler.getName(), channel));
             }
             close();
         }
@@ -193,7 +204,7 @@ public class SocketChannelHandler {
         } catch (RejectedExecutionException e) {
             if (log.isInfoEnabled()) {
                 log.info(String.format("too busy to execute connect handling [%s] of [%s]",
-                                       handler.name, channel));
+                                       handler.getName(), channel));
             }
             close();
         }
@@ -201,14 +212,14 @@ public class SocketChannelHandler {
 
     void handleRead() {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling read [%s]", handler.name));
+            log.trace(String.format("Handling read [%s]", handler.getName()));
         }
         try {
             handler.execute(readHandler);
         } catch (RejectedExecutionException e) {
             if (log.isInfoEnabled()) {
                 log.info(String.format("too busy to execute read handling [%s], reselecting [%s]",
-                                       handler.name, channel));
+                                       handler.getName(), channel));
             }
             selectForRead();
         }
@@ -216,14 +227,14 @@ public class SocketChannelHandler {
 
     void handleWrite() {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling write [%s]", handler.name));
+            log.trace(String.format("Handling write [%s]", handler.getName()));
         }
         try {
             handler.execute(writeHandler);
         } catch (RejectedExecutionException e) {
             if (log.isInfoEnabled()) {
                 log.info(String.format("too busy to execute write handling [%s], reselecting [%s]",
-                                       handler.name, channel));
+                                       handler.getName(), channel));
             }
             selectForWrite();
         }
