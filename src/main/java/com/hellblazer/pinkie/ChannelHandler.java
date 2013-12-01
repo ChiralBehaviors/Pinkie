@@ -359,18 +359,21 @@ public class ChannelHandler {
             selected.remove();
             SocketChannelHandler handler = (SocketChannelHandler) key.attachment();
             SocketChannel channel = (SocketChannel) key.channel();
+            int interestOps = key.interestOps();
             if (key.isConnectable()) {
-                key.interestOps(key.interestOps() ^ SelectionKey.OP_CONNECT);
+                key.interestOps(interestOps ^ SelectionKey.OP_CONNECT);
                 handleConnect(handler, channel);
-            } else if (key.isReadable()) {
-                key.interestOps(key.interestOps() ^ SelectionKey.OP_READ);
-                handler.handleRead();
-            } else if (key.isWritable()) {
-                key.interestOps(key.interestOps() ^ SelectionKey.OP_WRITE);
-                handler.handleWrite();
-            } else {
-                log.error("Invalid selection key operation: {}", key);
                 continue;
+            }
+
+            if ((interestOps & SelectionKey.OP_READ) > 0 && key.isReadable()) {
+                key.interestOps(interestOps ^ SelectionKey.OP_READ);
+                handler.handleRead();
+            }
+
+            if ((interestOps & SelectionKey.OP_WRITE) > 0 && key.isWritable()) {
+                key.interestOps(interestOps ^ SelectionKey.OP_WRITE);
+                handler.handleWrite();
             }
         }
     }
