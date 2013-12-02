@@ -23,6 +23,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.hellblazer.utils.Utils;
+
 /**
  * 
  * @author <a href="mailto:hal.hildebrand@gmail.com">Hal Hildebrand</a>
@@ -98,7 +100,9 @@ public class SimpleCommHandler implements CommunicationsHandler {
                 handler.get().selectForWrite();
             }
         } catch (IOException e) {
-            throw new IllegalStateException(e);
+            if (!Utils.isClosedConnection(e)) {
+                throw new IllegalStateException(e);
+            }
         }
     }
 }

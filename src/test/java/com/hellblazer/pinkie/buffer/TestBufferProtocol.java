@@ -15,6 +15,7 @@
  */
 package com.hellblazer.pinkie.buffer;
 
+import static com.hellblazer.utils.Utils.waitForCondition;
 import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -37,7 +38,7 @@ import org.mockito.stubbing.Answer;
 import com.hellblazer.pinkie.ChannelHandler;
 import com.hellblazer.pinkie.ServerSocketChannelHandler;
 import com.hellblazer.pinkie.SocketOptions;
-import com.hellblazer.pinkie.Utils;
+import com.hellblazer.utils.Condition;
 
 /**
  * 
@@ -211,36 +212,36 @@ public class TestBufferProtocol {
     private void waitForConnect(final AtomicBoolean clientConnect,
                                 final AtomicBoolean serverAccepted)
                                                                    throws InterruptedException {
-        Utils.waitFor("Client never connected", new Utils.Condition() {
+        waitForCondition(4000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return clientConnect.get();
             }
-        }, 4000, 100);
+        });
 
-        Utils.waitFor("Server never accepted", new Utils.Condition() {
+        waitForCondition(000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return serverAccepted.get();
             }
-        }, 4000, 100);
+        });
     }
 
     private void waitForMessages(final AtomicBoolean clientMessageSignal,
                                  final AtomicBoolean serverMessageSignal)
                                                                          throws InterruptedException {
-        Utils.waitFor("Client never received message", new Utils.Condition() {
+        waitForCondition(5000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return clientMessageSignal.get();
             }
-        }, 5000, 100);
+        });
 
-        Utils.waitFor("Server never received message", new Utils.Condition() {
+        waitForCondition(5000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return serverMessageSignal.get();
             }
-        }, 5000, 100);
+        });
     }
 }

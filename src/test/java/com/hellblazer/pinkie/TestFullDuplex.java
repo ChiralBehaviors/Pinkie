@@ -15,7 +15,7 @@
  */
 package com.hellblazer.pinkie;
 
-import static com.hellblazer.pinkie.Utils.waitFor;
+import static com.hellblazer.utils.Utils.waitForCondition;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -33,7 +33,7 @@ import javax.net.ssl.TrustManagerFactory;
 
 import org.junit.Test;
 
-import com.hellblazer.pinkie.Utils.Condition;
+import com.hellblazer.utils.Condition;
 
 /**
  * 
@@ -41,31 +41,6 @@ import com.hellblazer.pinkie.Utils.Condition;
  * 
  */
 public class TestFullDuplex {
-    private static final String KEY_STORE   = "keystore.jks";
-    private static final String TRUST_STORE = "cacerts.jks";
-    private static char[]       PASS_PHRASE = "passphrase".toCharArray();
-
-    private static SSLContext createSSLContext(boolean clientMode)
-                                                                  throws Exception {
-        KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(TestFullDuplex.class.getResourceAsStream(KEY_STORE),
-                PASS_PHRASE);
-
-        KeyStore ts = KeyStore.getInstance("JKS");
-        ts.load(TestFullDuplex.class.getResourceAsStream(TRUST_STORE),
-                PASS_PHRASE);
-        SSLContext sslContext = SSLContext.getInstance("TLS");
-
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-        tmf.init(ts);
-        sslContext.init(null, tmf.getTrustManagers(), null);
-
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-        kmf.init(ks, PASS_PHRASE);
-        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-        return sslContext;
-    }
-
     private static class Handler implements CommunicationsHandler {
         final AtomicReference<SocketChannelHandler> handler      = new AtomicReference<>();
         final String                                label;
@@ -131,13 +106,6 @@ public class TestFullDuplex {
                 handler.get().selectForWrite();
             }
         }
-
-        /**
-         * @return
-         */
-        public boolean hasHandler() {
-            return handler.get() != null;
-        }
     }
 
     private static class HandlerFactory implements CommunicationsHandlerFactory {
@@ -158,6 +126,33 @@ public class TestFullDuplex {
             return handler.get();
         }
 
+    }
+
+    private static final String KEY_STORE   = "keystore.jks";
+
+    private static char[]       PASS_PHRASE = "passphrase".toCharArray();
+
+    private static final String TRUST_STORE = "cacerts.jks";
+
+    private static SSLContext createSSLContext(boolean clientMode)
+                                                                  throws Exception {
+        KeyStore ks = KeyStore.getInstance("JKS");
+        ks.load(TestFullDuplex.class.getResourceAsStream(KEY_STORE),
+                PASS_PHRASE);
+
+        KeyStore ts = KeyStore.getInstance("JKS");
+        ts.load(TestFullDuplex.class.getResourceAsStream(TRUST_STORE),
+                PASS_PHRASE);
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        tmf.init(ts);
+        sslContext.init(null, tmf.getTrustManagers(), null);
+
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        kmf.init(ks, PASS_PHRASE);
+        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        return sslContext;
     }
 
     @Test
@@ -264,38 +259,38 @@ public class TestFullDuplex {
 
         handlerA.connectTo(handlerB.getLocalAddress(), initiator);
 
-        waitFor("initiator not connected", new Condition() {
+        waitForCondition(1000, 100, new Condition() {
+
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return initiator.handler.get() != null;
             }
-        }, 1000, 100);
+        });
 
-        waitFor("acceptor not connected", new Condition() {
+        waitForCondition(1000, 100, new Condition() {
             @Override
-            public boolean value() {
-                return factoryB.handler.get() != null
-                       && factoryB.handler.get().hasHandler();
+            public boolean isTrue() {
+                return factoryB.handler.get() != null;
             }
-        }, 1000, 100);
+        });
 
         final Handler acceptor = factoryB.handler.get();
         initiator.select();
         acceptor.select();
 
-        waitFor("initiator failed to read fully", new Condition() {
+        waitForCondition(1000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return initiator.readFinished.get();
             }
-        }, 1000, 100);
+        });
 
-        waitFor("acceptor failed to read fully", new Condition() {
+        waitForCondition(1000, 100, new Condition() {
             @Override
-            public boolean value() {
+            public boolean isTrue() {
                 return acceptor.readFinished.get();
             }
-        }, 1000, 100);
+        });
 
         handlerA.terminate();
         handlerB.terminate();
