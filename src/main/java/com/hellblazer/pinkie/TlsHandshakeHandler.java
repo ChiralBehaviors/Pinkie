@@ -60,7 +60,7 @@ public class TlsHandshakeHandler extends SocketChannelHandler {
         this.engine = engine;
         this.engine.setUseClientMode(client);
         SSLSession session = engine.getSession();
-        inboundClear = ByteBuffer.allocate(session.getApplicationBufferSize() + 50);
+        inboundClear = ByteBuffer.allocate(session.getApplicationBufferSize() * 4 + 50);
         inboundEncrypted = ByteBuffer.allocate(session.getPacketBufferSize() + 50);
         outboundEncrypted = ByteBuffer.allocate(session.getPacketBufferSize() + 50);
         outboundEncrypted.position(outboundEncrypted.limit());
