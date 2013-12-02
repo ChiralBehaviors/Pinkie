@@ -214,10 +214,9 @@ public class ChannelHandler {
         SocketChannel socketChannel = SocketChannel.open();
         SocketChannelHandler handler;
         if (isTls()) {
-            handler = new TlsSocketChannelHandler(eventHandler, this,
-                                                  socketChannel, index,
-                                                  createEngine(remoteAddress),
-                                                  true);
+            handler = new TlsHandshakeHandler(eventHandler, this,
+                                              socketChannel, index,
+                                              createEngine(remoteAddress), true);
         } else {
             handler = new SocketChannelHandler(eventHandler,
                                                ChannelHandler.this,
@@ -421,7 +420,16 @@ public class ChannelHandler {
         }
     }
 
-    void closeHandler(SocketChannelHandler handler) {
+    SSLEngine createEngine(InetSocketAddress remoteAddress) {
+        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
+                                                      remoteAddress.getPort());
+        if (sslParameters != null) {
+            engine.setSSLParameters(sslParameters);
+        }
+        return engine;
+    }
+
+    void delink(SocketChannelHandler handler) {
         final Lock myLock = handlersLock;
         myLock.lock();
         try {
@@ -433,15 +441,6 @@ public class ChannelHandler {
         } finally {
             myLock.unlock();
         }
-    }
-
-    SSLEngine createEngine(InetSocketAddress remoteAddress) {
-        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
-                                                      remoteAddress.getPort());
-        if (sslParameters != null) {
-            engine.setSSLParameters(sslParameters);
-        }
-        return engine;
     }
 
     void execute(Runnable task) {
@@ -459,8 +458,8 @@ public class ChannelHandler {
 
     SelectionKey register(int index, SocketChannel channel,
                           SocketChannelHandler handler, int operation) {
-        assert !channel.isBlocking() : String.format("Socket has not been set to non blocking mode [%s]",
-                                                     name);
+        assert !channel.isBlocking() : String.format("%s has not been set to non blocking mode [%s]",
+                                                     channel, name);
         SelectionKey key = null;
         Selector selector = selectors[index];
         try {
@@ -506,7 +505,7 @@ public class ChannelHandler {
                 if (log.isTraceEnabled()) {
                     log.trace("registering read for {}", handler.getChannel());
                 }
-                register(index, handler.getChannel(), handler,
+                register(index, handler.getConcreteChannel(), handler,
                          SelectionKey.OP_READ);
             }
         };
@@ -520,7 +519,7 @@ public class ChannelHandler {
                 if (log.isTraceEnabled()) {
                     log.trace("registering write for {}", handler.getChannel());
                 }
-                register(index, handler.getChannel(), handler,
+                register(index, handler.getConcreteChannel(), handler,
                          SelectionKey.OP_WRITE);
             }
         };

@@ -21,9 +21,15 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.security.KeyStore;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.TrustManagerFactory;
 
 import org.junit.Test;
 
@@ -35,6 +41,30 @@ import com.hellblazer.pinkie.Utils.Condition;
  * 
  */
 public class TestFullDuplex {
+    private static final String KEY_STORE   = "keystore.jks";
+    private static final String TRUST_STORE = "cacerts.jks";
+    private static char[]       PASS_PHRASE = "passphrase".toCharArray();
+
+    private static SSLContext createSSLContext(boolean clientMode)
+                                                                  throws Exception {
+        KeyStore ks = KeyStore.getInstance("JKS");
+        ks.load(TestFullDuplex.class.getResourceAsStream(KEY_STORE),
+                PASS_PHRASE);
+
+        KeyStore ts = KeyStore.getInstance("JKS");
+        ts.load(TestFullDuplex.class.getResourceAsStream(TRUST_STORE),
+                PASS_PHRASE);
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        tmf.init(ts);
+        sslContext.init(null, tmf.getTrustManagers(), null);
+
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        kmf.init(ks, PASS_PHRASE);
+        sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+        return sslContext;
+    }
 
     private static class Handler implements CommunicationsHandler {
         final AtomicReference<SocketChannelHandler> handler      = new AtomicReference<>();
@@ -80,6 +110,7 @@ public class TestFullDuplex {
         }
 
         public void select() {
+            assert handler.get() != null;
             handler.get().selectForRead();
             handler.get().selectForWrite();
         }
@@ -99,6 +130,13 @@ public class TestFullDuplex {
             if (write.hasRemaining()) {
                 handler.get().selectForWrite();
             }
+        }
+
+        /**
+         * @return
+         */
+        public boolean hasHandler() {
+            return handler.get() != null;
         }
     }
 
@@ -124,6 +162,7 @@ public class TestFullDuplex {
 
     @Test
     public void testFullDuplex() throws Exception {
+
         SocketOptions socketOptions = new SocketOptions();
         int bufferSize = 1024;
         socketOptions.setSend_buffer_size(bufferSize);
@@ -163,6 +202,63 @@ public class TestFullDuplex {
 
         final Handler initiator = new Handler("A", targetSize, inputA);
 
+        testFullDuplex(handlerA, handlerB, initiator, factoryB);
+    }
+
+    @Test
+    public void testFullDuplexTls() throws Exception {
+        SSLParameters sslParameters = new SSLParameters();
+        SocketOptions socketOptions = new SocketOptions();
+        int bufferSize = 1024;
+        socketOptions.setSend_buffer_size(bufferSize);
+        socketOptions.setReceive_buffer_size(bufferSize);
+        socketOptions.setTimeout(100);
+
+        int targetSize = 4 * 1024;
+
+        byte[] inputA = new byte[targetSize];
+        for (int i = 0; i < targetSize; i++) {
+            inputA[i] = 'a';
+        }
+        HandlerFactory factoryA = new HandlerFactory("A", targetSize, null);
+        ServerSocketChannelHandler handlerA = new ServerSocketChannelHandler(
+                                                                             "A",
+                                                                             socketOptions,
+                                                                             new InetSocketAddress(
+                                                                                                   "localhost",
+                                                                                                   0),
+                                                                             Executors.newCachedThreadPool(),
+                                                                             factoryA,
+                                                                             createSSLContext(false),
+                                                                             sslParameters);
+
+        byte[] inputB = new byte[targetSize];
+        for (int i = 0; i < targetSize; i++) {
+            inputB[i] = 'b';
+        }
+        final HandlerFactory factoryB = new HandlerFactory("B", targetSize,
+                                                           inputB);
+        ServerSocketChannelHandler handlerB = new ServerSocketChannelHandler(
+                                                                             "B",
+                                                                             socketOptions,
+                                                                             new InetSocketAddress(
+                                                                                                   "localhost",
+                                                                                                   0),
+                                                                             Executors.newCachedThreadPool(),
+                                                                             factoryB,
+                                                                             createSSLContext(false),
+                                                                             sslParameters);
+
+        final Handler initiator = new Handler("A", targetSize, inputA);
+
+        testFullDuplex(handlerA, handlerB, initiator, factoryB);
+    }
+
+    private void testFullDuplex(ServerSocketChannelHandler handlerA,
+                                ServerSocketChannelHandler handlerB,
+                                final Handler initiator,
+                                final HandlerFactory factoryB) throws Exception {
+
         handlerA.start();
         handlerB.start();
 
@@ -178,7 +274,8 @@ public class TestFullDuplex {
         waitFor("acceptor not connected", new Condition() {
             @Override
             public boolean value() {
-                return factoryB.handler.get() != null;
+                return factoryB.handler.get() != null
+                       && factoryB.handler.get().hasHandler();
             }
         }, 1000, 100);
 

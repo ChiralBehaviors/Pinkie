@@ -393,13 +393,13 @@ public class ServerSocketChannelHandler extends ChannelHandler {
         }
         SocketChannelHandler handler;
         if (isTls()) {
-            handler = new TlsSocketChannelHandler(
-                                                  commHandler,
-                                                  this,
-                                                  accepted,
-                                                  nextQueueIndex(),
-                                                  createEngine((InetSocketAddress) accepted.getRemoteAddress()),
-                                                  false);
+            handler = new TlsHandshakeHandler(
+                                              commHandler,
+                                              this,
+                                              accepted,
+                                              nextQueueIndex(),
+                                              createEngine((InetSocketAddress) accepted.getRemoteAddress()),
+                                              false);
         } else {
             handler = new SocketChannelHandler(commHandler, this, accepted,
                                                nextQueueIndex());

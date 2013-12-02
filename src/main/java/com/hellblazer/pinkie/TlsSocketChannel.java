@@ -35,62 +35,62 @@ public class TlsSocketChannel extends SocketChannel {
     private final TlsSocketChannelHandler handler;
 
     public TlsSocketChannel(TlsSocketChannelHandler handler) {
-        super(handler.getChannel().provider());
+        super(handler.getConcreteChannel().provider());
         this.handler = handler;
     }
 
     @Override
     public SocketChannel bind(SocketAddress local) throws IOException {
-        return handler.getChannel().bind(local);
+        return handler.getConcreteChannel().bind(local);
     }
 
     @Override
     public boolean connect(SocketAddress remote) throws IOException {
-        return handler.getChannel().connect(remote);
+        return handler.getConcreteChannel().connect(remote);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return handler.getChannel().equals(obj);
+        return handler.getConcreteChannel().equals(obj);
     }
 
     @Override
     public boolean finishConnect() throws IOException {
-        return handler.getChannel().finishConnect();
+        return handler.getConcreteChannel().finishConnect();
     }
 
-    public SocketChannel getChannel() {
-        return handler.getChannel();
+    public SocketChannel getConcreteChannel() {
+        return handler.getConcreteChannel();
     }
 
     @Override
     public SocketAddress getLocalAddress() throws IOException {
-        return handler.getChannel().getLocalAddress();
+        return handler.getConcreteChannel().getLocalAddress();
     }
 
     @Override
     public <T> T getOption(SocketOption<T> name) throws IOException {
-        return handler.getChannel().getOption(name);
+        return handler.getConcreteChannel().getOption(name);
     }
 
     @Override
     public SocketAddress getRemoteAddress() throws IOException {
-        return handler.getChannel().getRemoteAddress();
+        return handler.getConcreteChannel().getRemoteAddress();
     }
 
     @Override
     public int hashCode() {
-        return handler.getChannel().hashCode();
+        return handler.getConcreteChannel().hashCode();
     }
 
     @Override
     public boolean isConnected() {
-        return handler.getChannel().isConnected();
+        return handler.getConcreteChannel().isConnected();
     }
 
     @Override
     public boolean isConnectionPending() {
-        return handler.getChannel().isConnectionPending();
+        return handler.getConcreteChannel().isConnectionPending();
     }
 
     @Override
@@ -107,32 +107,27 @@ public class TlsSocketChannel extends SocketChannel {
     @Override
     public <T> SocketChannel setOption(SocketOption<T> name, T value)
                                                                      throws IOException {
-        return handler.getChannel().setOption(name, value);
+        return handler.getConcreteChannel().setOption(name, value);
     }
 
     @Override
     public SocketChannel shutdownInput() throws IOException {
-        return handler.getChannel().shutdownInput();
+        return handler.getConcreteChannel().shutdownInput();
     }
 
     @Override
     public SocketChannel shutdownOutput() throws IOException {
-        return handler.getChannel().shutdownOutput();
+        return handler.getConcreteChannel().shutdownOutput();
     }
 
     @Override
     public Socket socket() {
-        return handler.getChannel().socket();
+        return handler.getConcreteChannel().socket();
     }
 
     @Override
     public Set<SocketOption<?>> supportedOptions() {
-        return handler.getChannel().supportedOptions();
-    }
-
-    @Override
-    public String toString() {
-        return handler.getChannel().toString();
+        return handler.getConcreteChannel().supportedOptions();
     }
 
     @Override
@@ -151,7 +146,7 @@ public class TlsSocketChannel extends SocketChannel {
      */
     @Override
     protected void implCloseSelectableChannel() throws IOException {
-        handler.getChannel().close();
+        handler.getConcreteChannel().close();
     }
 
     /* (non-Javadoc)
@@ -159,6 +154,6 @@ public class TlsSocketChannel extends SocketChannel {
      */
     @Override
     protected void implConfigureBlocking(boolean block) throws IOException {
-        handler.getChannel().configureBlocking(block);
+        handler.getConcreteChannel().configureBlocking(block);
     }
 }

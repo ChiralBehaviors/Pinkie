@@ -37,35 +37,20 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public class SocketChannelHandler {
-
-    private class ReadHandler implements Runnable {
-        @Override
-        public void run() {
-            eventHandler.readReady();
-        }
-    }
-
-    private class WriteHandler implements Runnable {
-        @Override
-        public void run() {
-            eventHandler.writeReady();
-        }
-    }
-
-    private static final Logger           log          = LoggerFactory.getLogger(SocketChannelHandler.class);
+    private static final Logger           log  = LoggerFactory.getLogger(SocketChannelHandler.class);
 
     private final CommunicationsHandler   eventHandler;
-    private final int                     index;
     private volatile SocketChannelHandler next;
     private volatile SocketChannelHandler previous;
-    private final ReadHandler             readHandler  = new ReadHandler();
+    private final Runnable                readHandler;
     private final Runnable                selectForRead;
     private final Runnable                selectForWrite;
-    private final WriteHandler            writeHandler = new WriteHandler();
+    private final Runnable                writeHandler;
 
     final SocketChannel                   channel;
     final ChannelHandler                  handler;
-    final AtomicBoolean                   open         = new AtomicBoolean(true);
+    final int                             index;
+    final AtomicBoolean                   open = new AtomicBoolean(true);
 
     public SocketChannelHandler(CommunicationsHandler eventHandler,
                                 ChannelHandler handler, SocketChannel channel,
@@ -76,6 +61,8 @@ public class SocketChannelHandler {
         this.index = index;
         selectForRead = handler.selectForRead(index, this);
         selectForWrite = handler.selectForWrite(index, this);
+        readHandler = getReadHandler();
+        writeHandler = getWriteHandler();
     }
 
     /**
@@ -182,8 +169,36 @@ public class SocketChannelHandler {
         next = previous = null;
     }
 
+    SocketChannel getConcreteChannel() {
+        return channel;
+    }
+
     CommunicationsHandler getHandler() {
         return eventHandler;
+    }
+
+    /**
+     * @return
+     */
+    Runnable getReadHandler() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                eventHandler.readReady();
+            }
+        };
+    }
+
+    /**
+     * @return
+     */
+    Runnable getWriteHandler() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                eventHandler.writeReady();
+            }
+        };
     }
 
     void handleAccept() {

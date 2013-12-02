@@ -20,11 +20,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
-import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 
@@ -38,47 +36,30 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public class TlsSocketChannelHandler extends SocketChannelHandler {
-    private static final Logger                                    log            = LoggerFactory.getLogger(TlsSocketChannelHandler.class);
-    private final boolean                                          client;
-    private ByteBuffer                                             dummy          = ByteBuffer.allocate(0);
-    private final SSLEngine                                        engine;
-    private final AtomicBoolean                                    handlerRead    = new AtomicBoolean();
-    private final AtomicBoolean                                    handlerWrite   = new AtomicBoolean();
-    private boolean                                                handshake      = true;
-    private final AtomicReference<SSLEngineResult.HandshakeStatus> hsStatus       = new AtomicReference<>();
-    private final ByteBuffer                                       inboundClear;
-    private final ByteBuffer                                       inboundEncrypted;
-    private final ByteBuffer                                       outboundEncrypted;
-    private boolean                                                pendingConnect = true;
-    private final SSLSession                                       session;
-    private SSLEngineResult.Status                                 status;
-    private final TlsSocketChannel                                 tlsChannel;
+    private static final Logger    log          = LoggerFactory.getLogger(TlsSocketChannelHandler.class);
+    private final SSLEngine        engine;
+    private final AtomicBoolean    handlerRead  = new AtomicBoolean();
+    private final AtomicBoolean    handlerWrite = new AtomicBoolean();
+    private final ByteBuffer       inboundClear;
+    private final ByteBuffer       inboundEncrypted;
+    private final ByteBuffer       outboundEncrypted;
+    private final SSLSession       session;
+    private SSLEngineResult.Status status;
+    private final TlsSocketChannel tlsChannel;
 
-    /**
-     * @param eventHandler
-     * @param handler
-     * @param channel
-     * @param index
-     */
-    public TlsSocketChannelHandler(CommunicationsHandler eventHandler,
-                                   ChannelHandler handler,
-                                   SocketChannel channel, int index,
-                                   SSLEngine engine, boolean client) {
+    TlsSocketChannelHandler(CommunicationsHandler eventHandler,
+                            ChannelHandler handler, SocketChannel channel,
+                            int index, SSLEngine engine,
+                            ByteBuffer inboundClear,
+                            ByteBuffer outboundEncrypted,
+                            ByteBuffer inboundEncrypted) {
         super(eventHandler, handler, channel, index);
         tlsChannel = new TlsSocketChannel(this);
-        this.client = client;
         this.engine = engine;
-        this.engine.setUseClientMode(client);
+        this.inboundClear = inboundClear;
+        this.inboundEncrypted = inboundEncrypted;
+        this.outboundEncrypted = outboundEncrypted;
         session = engine.getSession();
-        inboundEncrypted = ByteBuffer.allocateDirect(session.getPacketBufferSize() + 50);
-        inboundClear = ByteBuffer.allocateDirect(session.getApplicationBufferSize() + 50);
-        outboundEncrypted = ByteBuffer.allocateDirect(session.getPacketBufferSize());
-        log.trace(String.format("%s peerNetData: %s, peerAppData: %s, netData: %s",
-                                channel, inboundEncrypted.capacity(),
-                                inboundClear.capacity(),
-                                outboundEncrypted.capacity()));
-        inboundClear.position(inboundClear.limit());
-        outboundEncrypted.position(outboundEncrypted.limit());
     }
 
     /**
@@ -91,8 +72,9 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         }
         engine.closeOutbound();
         if (outboundEncrypted.hasRemaining()) {
-            log.trace(String.format("There is some data left to be sent on: %s, waiting for close: ",
-                                    channel, outboundEncrypted));
+            log.trace(String.format("There is some data left to be sent on: %s, waiting for close: %s [%s]",
+                                    channel, outboundEncrypted,
+                                    handler.getName()));
         } else {
             doShutdown();
         }
@@ -111,7 +93,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     @Override
     public void selectForRead() {
         if (handlerRead.compareAndSet(false, true)) {
-            assert !handshake : "We should not be handshaking!";
             if (inboundClear.hasRemaining()) {
                 super.handleRead();
             } else {
@@ -126,8 +107,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                             super.handleRead();
                         }
                     } catch (IOException e) {
-                        log.error(String.format("Error unwrapping encrypted inbound data on: %s",
-                                                channel), e);
+                        log.error(String.format("Error unwrapping encrypted inbound data on: %s [%s]",
+                                                channel, handler.getName()), e);
                         close();
                     }
                 }
@@ -138,7 +119,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     @Override
     public void selectForWrite() {
         if (handlerWrite.compareAndSet(false, true)) {
-            assert !handshake : "We should not be handshaking!";
             if (!outboundEncrypted.hasRemaining()) {
                 super.selectForWrite();
             }
@@ -146,10 +126,11 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     }
 
     private void doShutdown() {
-        assert !outboundEncrypted.hasRemaining() : "Buffer was not empty.";
+        assert !outboundEncrypted.hasRemaining() : String.format("Buffer was not empty. [%s]",
+                                                                 handler.getName());
         if (engine.isOutboundDone()) {
-            log.trace(String.format("Outbound data is finished. Closing socket %s",
-                                    channel));
+            log.trace(String.format("Outbound data is finished. Closing socket %s [%s]",
+                                    channel, handler.getName()));
             super.close();
             return;
         }
@@ -161,10 +142,13 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
          */
         outboundEncrypted.clear();
         try {
-            SSLEngineResult res = engine.wrap(dummy, outboundEncrypted);
-            log.info(String.format("Wrapping: %s : %s", channel, res));
+            SSLEngineResult res = engine.wrap(ByteBuffer.allocate(0),
+                                              outboundEncrypted);
+            log.trace(String.format("Wrapping: %s : %s, [%s]", channel, res,
+                                    handler.getName()));
         } catch (SSLException e) {
-            log.warn(String.format("Error during shutdown: %s", channel), e);
+            log.warn(String.format("Error during shutdown: %s [%s]", channel,
+                                   handler.getName()), e);
             close();
             return;
         }
@@ -172,35 +156,26 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         try {
             flushData();
         } catch (IOException e) {
-            log.warn(String.format("Error during shutdown flush of data: %s",
-                                   channel), e);
+            log.warn(String.format("Error during shutdown flush of data: %s [%s]",
+                                   channel, handler.getName()), e);
             super.close();
         }
     }
 
-    private void finishInitialHandshake() {
-        handshake = false;
-        if (pendingConnect) {
-            pendingConnect = false;
-            if (client) {
-                super.handleConnect();
-            } else {
-                super.handleAccept();
-            }
-        }
-    }
-
     private boolean flushData() throws IOException {
-        assert outboundEncrypted.hasRemaining() : "Trying to write but netData buffer is empty";
+        assert outboundEncrypted.hasRemaining() : String.format("Trying to write but outbound encrypted buffer is empty [%s]",
+                                                                handler.getName());
         int written;
         try {
             written = channel.write(outboundEncrypted);
         } catch (IOException e) {
             outboundEncrypted.position(outboundEncrypted.limit());
-            log.error(String.format("Error flushing data: %s", channel), e);
+            log.error(String.format("Error flushing data: %s [%s]", channel,
+                                    handler.getName()), e);
             throw e;
         }
-        log.trace(String.format("Wrote %s bytes to socket: ", written, channel));
+        log.trace(String.format("Wrote %s bytes to socket: %s [%s]", written,
+                                channel, handler.getName()));
         if (outboundEncrypted.hasRemaining()) {
             super.selectForWrite();
             return false;
@@ -209,80 +184,12 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         }
     }
 
-    private void handshake() {
-        while (true) {
-            log.trace(String.format("%s handshake status: %s", channel,
-                                    hsStatus.get()));
-            switch (hsStatus.get()) {
-                case FINISHED:
-                    if (handshake) {
-                        finishInitialHandshake();
-                    }
-                    return;
-                case NEED_TASK:
-                    Runnable task = engine.getDelegatedTask();
-                    if (task != null) {
-                        handler.execute(task(task));
-                    }
-                    return;
-                case NEED_UNWRAP:
-                    try {
-                        readAndUnwrap();
-                    } catch (IOException e) {
-                        log.error(String.format("Error during initial handshake on: %s",
-                                                channel), e);
-                        close();
-                        return;
-                    }
-                    if (handshake
-                        && status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
-                        super.selectForRead();
-                    }
-                    return;
-                case NEED_WRAP:
-                    if (outboundEncrypted.hasRemaining()) {
-                        return;
-                    }
-
-                    outboundEncrypted.clear();
-                    SSLEngineResult res;
-                    try {
-                        res = engine.wrap(dummy, outboundEncrypted);
-                    } catch (SSLException e) {
-                        log.error(String.format("Error wrapping outbound data during initial handshake on: %s",
-                                                channel), e);
-                        close();
-                        return;
-                    }
-                    log.info("Wrapping:\n" + res);
-                    assert res.bytesProduced() != 0 : "No net data produced during handshake wrap.";
-                    assert res.bytesConsumed() == 0 : "App data consumed during handshake wrap.";
-                    hsStatus.set(engine.getHandshakeStatus());
-                    outboundEncrypted.flip();
-
-                    try {
-                        if (!flushData()) {
-                            return;
-                        }
-                    } catch (IOException e) {
-                        log.error(String.format("Error flushing data during initial handshake on: %s",
-                                                channel), e);
-                        close();
-                        return;
-                    }
-                    break;
-                case NOT_HANDSHAKING:
-                    assert false : "doHandshake() should never reach the NOT_HANDSHAKING state";
-                    return;
-            }
-        }
-    }
-
     private int readAndUnwrap() throws IOException {
-        assert !inboundClear.hasRemaining() : "Application buffer not empty";
+        assert !inboundClear.hasRemaining() : String.format("Application buffer not empty [%s]",
+                                                            handler.getName());
         int bytesRead = channel.read(inboundEncrypted);
-        log.trace(String.format("Read %s bytes from socket: %s", bytesRead,
-                                channel));
+        log.trace(String.format("Read %s bytes from socket: %s [%s]",
+                                bytesRead, channel, handler.getName()));
         if (bytesRead == -1) {
             engine.closeInbound();
             if (inboundEncrypted.position() == 0
@@ -297,29 +204,28 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         SSLEngineResult res;
         do {
             res = engine.unwrap(inboundEncrypted, inboundClear);
-            log.info("Unwrapping:\n" + res);
+            log.info(String.format("Unwrapping: %s [%s]", res,
+                                   handler.getName()));
         } while (res.getStatus() == SSLEngineResult.Status.OK
                  && res.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.NEED_UNWRAP
                  && res.bytesProduced() == 0);
-
-        if (res.getHandshakeStatus() == SSLEngineResult.HandshakeStatus.FINISHED) {
-            finishInitialHandshake();
-        }
 
         if (inboundClear.position() == 0
             && res.getStatus() == SSLEngineResult.Status.OK
             && inboundEncrypted.hasRemaining()) {
             res = engine.unwrap(inboundEncrypted, inboundClear);
-            log.info("Unwrapping:\n" + res);
+            log.info(String.format("Unwrapping: %s [%s]", res,
+                                   handler.getName()));
         }
 
         status = res.getStatus();
-        hsStatus.set(engine.getHandshakeStatus());
-        assert status != SSLEngineResult.Status.BUFFER_OVERFLOW : "Buffer should not overflow: "
-                                                                  + res.toString();
+        assert status != SSLEngineResult.Status.BUFFER_OVERFLOW : String.format("Buffer should not overflow: ",
+                                                                                res,
+                                                                                handler.getName());
 
         if (status == SSLEngineResult.Status.CLOSED) {
-            log.trace(String.format("%s is being closed by peer", channel));
+            log.trace(String.format("%s is being closed by peer [%s]", channel,
+                                    handler.getName()));
             close();
             return -1;
         }
@@ -327,71 +233,25 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         inboundEncrypted.compact();
         inboundClear.flip();
 
-        HandshakeStatus handshakeStatus = hsStatus.get();
-        if (handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_TASK
-            || handshakeStatus == SSLEngineResult.HandshakeStatus.NEED_WRAP
-            || handshakeStatus == SSLEngineResult.HandshakeStatus.FINISHED) {
-            log.trace(String.format("%s rehandshaking: %s", channel,
-                                    handshakeStatus));
-            handshake();
-        }
-
         return inboundClear.remaining();
-    }
-
-    private Runnable task(final Runnable engineTask) {
-        return new Runnable() {
-            @Override
-            public void run() {
-                engineTask.run();
-                hsStatus.set(engine.getHandshakeStatus());
-                handshake();
-            }
-        };
-    }
-
-    @Override
-    void handleAccept() {
-        try {
-            engine.beginHandshake();
-        } catch (SSLException e) {
-            log.error(String.format("Error beginning handshake on %s", channel),
-                      e);
-            close();
-            return;
-        }
-        hsStatus.set(engine.getHandshakeStatus());
-        handshake();
-    }
-
-    @Override
-    void handleConnect() {
-        try {
-            engine.beginHandshake();
-        } catch (SSLException e) {
-            log.error(String.format("Error beginning handshake on %s", channel),
-                      e);
-            close();
-            return;
-        }
-        hsStatus.set(engine.getHandshakeStatus());
-        handshake();
     }
 
     @Override
     void handleRead() {
-        assert handshake || handlerRead.get() : "Trying to read when there is no read interest set";
+        assert handlerRead.get() : String.format("Trying to read when there is no read interest set [%s]",
+                                                 handler.getName());
         try {
-            if (handshake) {
-                handshake();
-            } else if (!open.get()) {
+            if (!open.get()) {
                 doShutdown();
             } else {
-                assert handlerRead.get() : "handleRead() called without read interest being set";
+                assert handlerRead.get() : String.format("handleRead() called without read interest being set [%s]",
+                                                         handler.getName());
 
                 int bytesUnwrapped = readAndUnwrap();
                 if (bytesUnwrapped == -1) {
-                    assert engine.isInboundDone() : "End of stream but engine inbound is not closed";
+                    assert engine.isInboundDone() : String.format("End of stream but engine inbound is not closed %s [%s]",
+                                                                  channel,
+                                                                  handler.getName());
                     close();
                 } else if (bytesUnwrapped == 0) {
                     super.selectForRead();
@@ -401,8 +261,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                 }
             }
         } catch (IOException e) {
-            log.error(String.format("Error inbound tls read on: %s", channel),
-                      e);
+            log.error(String.format("Error inbound tls read on: %s [%s]",
+                                    channel, handler.getName()), e);
             close();
         }
     }
@@ -414,9 +274,7 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     void handleWrite() {
         try {
             if (flushData()) {
-                if (handshake) {
-                    handshake();
-                } else if (!open.get()) {
+                if (!open.get()) {
                     doShutdown();
                 } else {
                     if (handlerWrite.compareAndSet(true, false)) {
@@ -447,7 +305,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
      * @throws IOException
      */
     long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
-        assert !handshake : "We should not be handshaking!";
         if (engine.isInboundDone()) {
             return -1;
         }
@@ -465,7 +322,14 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
                 continue;
             }
             int available = inboundClear.remaining();
-            dst.put(inboundClear);
+            if (available <= dst.remaining()) {
+                dst.put(inboundClear);
+            } else {
+                int oldLimit = inboundClear.limit();
+                inboundClear.limit(inboundClear.position() + dst.remaining());
+                dst.put(inboundClear);
+                inboundClear.limit(oldLimit);
+            }
             totalRead += available - inboundClear.remaining();
             if (!inboundClear.hasRemaining()) {
                 return totalRead;
@@ -492,15 +356,13 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
      * @throws IOException
      */
     long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
-        assert !handshake : "We should not be handshaking!";
-
         if (outboundEncrypted.hasRemaining()) {
             return 0;
         }
 
         outboundEncrypted.clear();
         SSLEngineResult res = engine.wrap(srcs, outboundEncrypted);
-        log.info("Wrapping:\n" + res);
+        log.info(String.format("Wrapping: %s [%s]", res, handler.getName()));
         outboundEncrypted.flip();
         flushData();
 
