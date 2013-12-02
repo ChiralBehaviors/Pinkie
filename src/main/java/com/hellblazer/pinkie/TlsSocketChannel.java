@@ -61,10 +61,6 @@ public class TlsSocketChannel extends SocketChannel {
         return handler.getConcreteChannel().finishConnect();
     }
 
-    public SocketChannel getConcreteChannel() {
-        return handler.getConcreteChannel();
-    }
-
     @Override
     public SocketAddress getLocalAddress() throws IOException {
         return handler.getConcreteChannel().getLocalAddress();
