@@ -91,8 +91,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
 
     @Override
     public void selectForWrite() {
+        selectForWriteRequested.set(true);
         if (!flushing.get()) {
-            selectForWriteRequested.set(true);
             super.selectForWrite();
         }
     }
