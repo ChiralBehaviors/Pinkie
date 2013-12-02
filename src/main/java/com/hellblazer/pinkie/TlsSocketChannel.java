@@ -23,6 +23,7 @@ import java.net.SocketOption;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A wrapper around a SocketChannel to provide seamless Tls functionality for
@@ -32,6 +33,7 @@ import java.util.Set;
  * 
  */
 public class TlsSocketChannel extends SocketChannel {
+    private AtomicReference<Exception>    deferredException = new AtomicReference<>();
     private final TlsSocketChannelHandler handler;
 
     public TlsSocketChannel(TlsSocketChannelHandler handler) {
@@ -155,5 +157,9 @@ public class TlsSocketChannel extends SocketChannel {
     @Override
     protected void implConfigureBlocking(boolean block) throws IOException {
         handler.getConcreteChannel().configureBlocking(block);
+    }
+
+    void setDeferredException(Exception deferredException) {
+        this.deferredException.set(deferredException);
     }
 }

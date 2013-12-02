@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory;
 public class SocketChannelHandler {
     private static final Logger           log  = LoggerFactory.getLogger(SocketChannelHandler.class);
 
-    private final CommunicationsHandler   eventHandler;
     private volatile SocketChannelHandler next;
     private volatile SocketChannelHandler previous;
     private final Runnable                readHandler;
@@ -48,6 +47,7 @@ public class SocketChannelHandler {
     private final Runnable                writeHandler;
 
     final SocketChannel                   channel;
+    final CommunicationsHandler           eventHandler;
     final ChannelHandler                  handler;
     final int                             index;
     final AtomicBoolean                   open = new AtomicBoolean(true);
