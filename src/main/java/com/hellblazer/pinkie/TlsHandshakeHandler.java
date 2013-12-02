@@ -272,9 +272,6 @@ public class TlsHandshakeHandler extends SocketChannelHandler {
 
         status = res.getStatus();
         hsStatus.set(engine.getHandshakeStatus());
-        assert status != SSLEngineResult.Status.BUFFER_OVERFLOW : String.format("Buffer should not overflow: %s [%s]",
-                                                                                res,
-                                                                                handler.getName());
 
         if (status == SSLEngineResult.Status.CLOSED) {
             log.trace(String.format("%s is being closed by peer [%s]", channel,
