@@ -17,6 +17,7 @@
 package com.hellblazer.pinkie;
 
 import java.io.IOException;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,9 +61,36 @@ public class TlsHandshakeHandler extends SocketChannelHandler {
         this.engine = engine;
         this.engine.setUseClientMode(client);
         SSLSession session = engine.getSession();
-        inboundClear = ByteBuffer.allocateDirect(session.getApplicationBufferSize() * 4 + 50);
-        inboundEncrypted = ByteBuffer.allocateDirect(session.getPacketBufferSize() + 50);
-        outboundEncrypted = ByteBuffer.allocateDirect(session.getPacketBufferSize() + 50);
+        int receiveBufferSize;
+        try {
+            receiveBufferSize = channel.getOption(StandardSocketOptions.SO_RCVBUF);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                                            String.format("Unable to retrieve retrieve buffer size for %s [%s]",
+                                                          channel,
+                                                          handler.getName()));
+        }
+        int packetBufferSize = session.getPacketBufferSize();
+        int inboundEncryptedBufferSize = receiveBufferSize <= packetBufferSize ? packetBufferSize + 50
+                                                                              : receiveBufferSize;
+        int sendBufferSize;
+        try {
+            sendBufferSize = channel.getOption(StandardSocketOptions.SO_SNDBUF);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                                            String.format("Unable to retrieve send buffer size for %s [%s]",
+                                                          channel,
+                                                          handler.getName()));
+        }
+        int outboundEncryptedBufferSize = sendBufferSize <= packetBufferSize ? packetBufferSize + 50
+                                                                            : sendBufferSize;
+        log.info(String.format("Using inbound: %s, outbound: %s for %s [%s]",
+                               inboundEncryptedBufferSize,
+                               outboundEncryptedBufferSize, channel,
+                               handler.getName()));
+        inboundClear = ByteBuffer.allocateDirect(inboundEncryptedBufferSize);
+        inboundEncrypted = ByteBuffer.allocateDirect(inboundEncryptedBufferSize);
+        outboundEncrypted = ByteBuffer.allocateDirect(outboundEncryptedBufferSize);
         outboundEncrypted.position(outboundEncrypted.limit());
         inboundClear.position(inboundClear.limit());
     }
