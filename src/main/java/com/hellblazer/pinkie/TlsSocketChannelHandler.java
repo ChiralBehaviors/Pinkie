@@ -40,13 +40,13 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
     private static final Logger                           log                     = LoggerFactory.getLogger(TlsSocketChannelHandler.class);
 
     private final SSLEngine                               engine;
+    private final AtomicBoolean                           flushing                = new AtomicBoolean();
     private final ByteBuffer                              inboundEncrypted;
     private final ByteBuffer                              outboundEncrypted;
+    private final AtomicBoolean                           selectForWriteRequested = new AtomicBoolean();
     private final SSLSession                              session;
     private final AtomicReference<SSLEngineResult.Status> status                  = new AtomicReference<>();
     private final TlsSocketChannel                        tlsChannel;
-    private final AtomicBoolean                           flushing                = new AtomicBoolean();
-    private final AtomicBoolean                           selectForWriteRequested = new AtomicBoolean();
 
     TlsSocketChannelHandler(CommunicationsHandler eventHandler,
                             ChannelHandler handler, SocketChannel channel,
@@ -94,68 +94,6 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         if (!flushing.get()) {
             selectForWriteRequested.set(true);
             super.selectForWrite();
-        }
-    }
-
-    @Override
-    Runnable getWriteHandler() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                if (flushing.compareAndSet(true, false)) {
-                    try {
-                        if (!flushData()) {
-                            return;
-                        }
-                    } catch (IOException e) {
-                        log.warn(String.format("Error during flush of encrypted data: %s [%s]",
-                                               channel, handler.getName()), e);
-                        tlsChannel.setDeferredException(e);
-                        close();
-                        return;
-                    }
-                }
-                if (selectForWriteRequested.compareAndSet(true, false)) {
-                    eventHandler.writeReady();
-                }
-            }
-        };
-    }
-
-    private void shutdown() {
-        assert !outboundEncrypted.hasRemaining() : String.format("Buffer was not empty. [%s]",
-                                                                 handler.getName());
-        if (engine.isOutboundDone()) {
-            log.trace(String.format("Outbound data is finished. Closing socket %s [%s]",
-                                    channel, handler.getName()));
-            super.close();
-            return;
-        }
-
-        // The engine has more things to send 
-        /*
-         * By RFC 2616, we can "fire and forget" our close_notify
-         * message, so that's what we'll do here.
-         */
-        outboundEncrypted.clear();
-        try {
-            SSLEngineResult res = engine.wrap(ByteBuffer.allocate(0),
-                                              outboundEncrypted);
-            log.trace(String.format("Wrapping: %s : %s, [%s]", channel, res,
-                                    handler.getName()));
-        } catch (SSLException e) {
-            log.warn(String.format("Error during shutdown: %s [%s]", channel,
-                                   handler.getName()), e);
-            close();
-            return;
-        }
-        outboundEncrypted.flip();
-        try {
-            flushData();
-        } catch (IOException e) {
-            log.warn(String.format("Error during shutdown flush of data: %s [%s]",
-                                   channel, handler.getName()), e);
-            super.close();
         }
     }
 
@@ -221,6 +159,68 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
 
         inboundEncrypted.compact();
         return totalRead;
+    }
+
+    private void shutdown() {
+        assert !outboundEncrypted.hasRemaining() : String.format("Buffer was not empty. [%s]",
+                                                                 handler.getName());
+        if (engine.isOutboundDone()) {
+            log.trace(String.format("Outbound data is finished. Closing socket %s [%s]",
+                                    channel, handler.getName()));
+            super.close();
+            return;
+        }
+
+        // The engine has more things to send 
+        /*
+         * By RFC 2616, we can "fire and forget" our close_notify
+         * message, so that's what we'll do here.
+         */
+        outboundEncrypted.clear();
+        try {
+            SSLEngineResult res = engine.wrap(ByteBuffer.allocate(0),
+                                              outboundEncrypted);
+            log.trace(String.format("Wrapping: %s : %s, [%s]", channel, res,
+                                    handler.getName()));
+        } catch (SSLException e) {
+            log.warn(String.format("Error during shutdown: %s [%s]", channel,
+                                   handler.getName()), e);
+            close();
+            return;
+        }
+        outboundEncrypted.flip();
+        try {
+            flushData();
+        } catch (IOException e) {
+            log.warn(String.format("Error during shutdown flush of data: %s [%s]",
+                                   channel, handler.getName()), e);
+            super.close();
+        }
+    }
+
+    @Override
+    Runnable getWriteHandler() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                if (flushing.compareAndSet(true, false)) {
+                    try {
+                        if (!flushData()) {
+                            return;
+                        }
+                    } catch (IOException e) {
+                        log.warn(String.format("Error during flush of encrypted data: %s [%s]",
+                                               channel, handler.getName()), e);
+                        tlsChannel.setDeferredException(e);
+                        close();
+                        return;
+                    }
+                }
+                if (selectForWriteRequested.compareAndSet(true, false)) {
+                    eventHandler.writeReady();
+                }
+            }
+        };
     }
 
     /**

@@ -34,6 +34,7 @@ import junit.framework.TestCase;
 import org.junit.Test;
 
 import com.hellblazer.utils.Condition;
+import com.hellblazer.utils.Utils;
 
 /**
  * 
@@ -72,7 +73,9 @@ public class TestServerSocketChannelHandler extends TestCase {
             try {
                 handler.getChannel().read(read);
             } catch (IOException e) {
-                throw new IllegalStateException();
+                if (!Utils.isClosedConnection(e)) {
+                    throw new IllegalStateException(e);
+                }
             }
             if (!read.hasRemaining()) {
                 byte[] buf = new byte[readLength];
