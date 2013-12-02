@@ -270,7 +270,8 @@ public class TestFullDuplex {
         waitForCondition(1000, 100, new Condition() {
             @Override
             public boolean isTrue() {
-                return factoryB.handler.get() != null;
+                Handler handler = factoryB.handler.get();
+                return handler != null && handler.handler.get() != null;
             }
         });
 
