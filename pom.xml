@@ -21,11 +21,14 @@
 	</scm>
 
 	<repositories>
-		<repository>
-			<id>hellblazer-snapshots</id>
-			<name>Hellblazer Snapshots </name>
-			<url>http://repository-ouroboros.forge.cloudbees.com/snapshot/</url>
-		</repository>
+        <repository>
+            <id>hellblazer-snapshots</id>
+            <name>Hellblazer Snapshots </name>
+            <url>http://repository-hal900000.forge.cloudbees.com/snapshot/</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
 	</repositories>
 
 	<build>
