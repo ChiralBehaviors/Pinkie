@@ -230,8 +230,7 @@ public class ChannelHandler {
         } catch (IOException e) {
             log.warn(String.format("Cannot connect to %s [%s]", remoteAddress,
                                    name), e);
-            handler.close();
-            return;
+            throw e;
         }
         registerConnect(index, socketChannel, handler);
         return;
@@ -308,7 +307,8 @@ public class ChannelHandler {
     private void handleConnect(SocketChannelHandler handler,
                                SocketChannel channel) {
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Handling connect [%s]", name));
+            log.trace(String.format("Handling connect on %s [%s]", channel,
+                                    name));
         }
         try {
             channel.finishConnect();
@@ -319,7 +319,8 @@ public class ChannelHandler {
             return;
         }
         if (log.isTraceEnabled()) {
-            log.trace(String.format("Dispatching connected action [%s]", name));
+            log.trace(String.format("Dispatching connected action on %s [%s]",
+                                    channel, name));
         }
         handler.handleConnect();
     }
@@ -334,7 +335,7 @@ public class ChannelHandler {
             try {
                 register.run();
             } catch (Throwable e) {
-                log.error("Error when registering [{}]", name, e);
+                log.error("Error when registering interests [{}]", name, e);
             }
             register = registers[index].pollFirst();
         }
@@ -468,6 +469,7 @@ public class ChannelHandler {
                 key = channel.register(selector, operation, handler);
             } else {
                 key.interestOps(key.interestOps() | operation);
+                key.attach(handler);
             }
         } catch (NullPointerException e) {
             // apparently the file descriptor can be nulled
@@ -475,8 +477,8 @@ public class ChannelHandler {
                                     name), e);
         } catch (ClosedChannelException e) {
             if (log.isTraceEnabled()) {
-                log.trace(String.format("channel has been closed [%s]", name),
-                          e);
+                log.trace(String.format("%s has been closed [%s]", channel,
+                                        name), e);
             }
             handler.close();
         }
@@ -489,7 +491,8 @@ public class ChannelHandler {
             @Override
             public void run() {
                 if (log.isTraceEnabled()) {
-                    log.trace("registering connect for {}", socketChannel);
+                    log.trace(String.format("registering connect for %s [%s]",
+                                            socketChannel, name));
                 }
                 register(index, socketChannel, handler, SelectionKey.OP_CONNECT);
             }
@@ -503,7 +506,8 @@ public class ChannelHandler {
             @Override
             public void run() {
                 if (log.isTraceEnabled()) {
-                    log.trace("registering read for {}", handler.getChannel());
+                    log.trace(String.format("registering read for %s [%s]",
+                                            handler.getChannel(), name));
                 }
                 register(index, handler.getConcreteChannel(), handler,
                          SelectionKey.OP_READ);
@@ -517,7 +521,8 @@ public class ChannelHandler {
             @Override
             public void run() {
                 if (log.isTraceEnabled()) {
-                    log.trace("registering write for {}", handler.getChannel());
+                    log.trace(String.format("registering write for %s [%s]",
+                                            handler.getChannel(), name));
                 }
                 register(index, handler.getConcreteChannel(), handler,
                          SelectionKey.OP_WRITE);
