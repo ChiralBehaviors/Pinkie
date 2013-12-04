@@ -58,6 +58,8 @@ public class TlsSocketChannelHandler extends SocketChannelHandler {
         this.engine = engine;
         this.inboundEncrypted = inboundEncrypted;
         this.outboundEncrypted = outboundEncrypted;
+        this.inboundEncrypted.position(inboundEncrypted.limit());
+        this.outboundEncrypted.clear();
         session = engine.getSession();
     }
 
