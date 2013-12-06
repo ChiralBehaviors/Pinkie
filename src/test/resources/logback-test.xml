@@ -12,6 +12,5 @@
 	<root level="INFO">
 		<appender-ref ref="STDERR" />
 	</root>
-	<logger name="com.hellblazer.pinkie.TlsHandshakeHandler" level="TRACE" />
-	<logger name="com.hellblazer.pinkie.TlsSocketChannelHandler" level="TRACE" />
+	<logger name="com.hellblazer.pinkie" level="INFO" />
 </configuration>

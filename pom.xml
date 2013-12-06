@@ -129,8 +129,7 @@
 		<dependency>
 			<groupId>com.hellblazer</groupId>
 			<artifactId>utils</artifactId>
-			<version>0.0.1</version>
-			<scope>test</scope>
+			<version>0.0.2-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 	<properties>

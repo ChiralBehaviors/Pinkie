@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import com.hellblazer.pinkie.CommunicationsHandler;
 import com.hellblazer.pinkie.SocketChannelHandler;
+import com.hellblazer.utils.HexDump;
 
 /**
  * The implementation of a simple bidirectional non blocking binary buffer
@@ -79,13 +80,18 @@ final public class BufferProtocol {
         @Override
         public void readReady() {
             try {
+                int position = 0;
                 if (log.isDebugEnabled()) {
+                    position = readBuffer.position();
                     log.debug("socket {} still need to read {} bytes",
                               socketInfo(), readBuffer.remaining());
                 }
                 int read = handler.getChannel().read(readBuffer);
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} read {} bytes", socketInfo(), read);
+                    log.debug(String.format("socket %s read %s bytes:\n%s",
+                                            socketInfo(), read,
+                                            HexDump.hexdump(readBuffer,
+                                                            position, read)));
                 }
             } catch (IOException e) {
                 if (isClosedConnection(e)) {
@@ -148,13 +154,18 @@ final public class BufferProtocol {
         @Override
         public void writeReady() {
             try {
+                int position = 0;
                 if (log.isDebugEnabled()) {
+                    position = writeBuffer.position();
                     log.debug("socket {} still need to write {} bytes",
                               socketInfo(), writeBuffer.remaining());
                 }
                 int written = handler.getChannel().write(writeBuffer);
                 if (log.isDebugEnabled()) {
-                    log.debug("socket {} wrote {} bytes", socketInfo(), written);
+                    log.debug(String.format("socket %s wrote %s bytes\n%s",
+                                            socketInfo(), written,
+                                            HexDump.hexdump(writeBuffer,
+                                                            position, written)));
                 }
             } catch (IOException e) {
                 if (isClosedConnection(e)) {
