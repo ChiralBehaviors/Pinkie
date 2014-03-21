@@ -38,7 +38,7 @@ The current version of Pinkie is 0.0.3-SNAPSHOT.  To use Pinkie in your project,
 
     <dependency>
         <groupId>com.hellblazer</groupId>
-        <artifactId>tron</artifactId>
+        <artifactId>pinkie</artifactId>
         <version>0.0.3-SNAPSHOT</version>
     </dependency>
     
