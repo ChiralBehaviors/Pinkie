@@ -36,7 +36,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
 import org.slf4j.Logger;
@@ -62,8 +61,6 @@ public class ChannelHandler {
     private final BlockingDeque<Runnable> registers[];
     private final Selector[]              selectors;
     private final Thread[]                selectorThreads;
-    private final SSLContext              sslContext;
-    private final SSLParameters           sslParameters;
 
     final SocketOptions                   options;
     final AtomicBoolean                   run           = new AtomicBoolean();
@@ -100,35 +97,10 @@ public class ChannelHandler {
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
+    @SuppressWarnings("unchecked")
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, int selectorQueues)
                                                                        throws IOException {
-        this(handlerName, socketOptions, executor, selectorQueues, null, null);
-    }
-
-    /**
-     * Construct a new channel handler
-     * 
-     * @param handlerName
-     *            - the String name used to mark the selection thread
-     * @param socketOptions
-     *            - the socket options to configure new sockets
-     * @param executor
-     *            - the executor service to handle I/O and selection events
-     * @param selectorQueues
-     *            - the number of selectors to use
-     * @param sslContext
-     *            - the sslContext to use for SSL sessions
-     * @param sslParameters
-     *            - SSL parameters to use
-     * @throws IOException
-     *             - if things go pear shaped when opening the selector
-     */
-    @SuppressWarnings("unchecked")
-    public ChannelHandler(String handlerName, SocketOptions socketOptions,
-                          ExecutorService executor, int selectorQueues,
-                          SSLContext sslContext, SSLParameters sslParameters)
-                                                                             throws IOException {
         name = handlerName;
         if (selectorQueues <= 0) {
             throw new IllegalArgumentException(
@@ -142,8 +114,6 @@ public class ChannelHandler {
         registers = regs;
         this.executor = executor;
         options = socketOptions;
-        this.sslContext = sslContext;
-        this.sslParameters = sslParameters;
 
         for (int i = 0; i < selectorQueues; i++) {
             selectorThreads[i] = new Thread(selectorTask(i),
@@ -174,7 +144,7 @@ public class ChannelHandler {
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, SSLContext sslContext,
                           SSLParameters sslParamters) throws IOException {
-        this(handlerName, socketOptions, executor, 1, sslContext, sslParamters);
+        this(handlerName, socketOptions, executor, 1);
     }
 
     /**
@@ -212,16 +182,11 @@ public class ChannelHandler {
         assert eventHandler != null : "Handler cannot be null";
         int index = nextQueueIndex();
         SocketChannel socketChannel = SocketChannel.open();
-        SocketChannelHandler handler;
-        if (isTls()) {
-            handler = new TlsHandshakeHandler(eventHandler, this,
-                                              socketChannel, index,
-                                              createEngine(remoteAddress), true);
-        } else {
-            handler = new SocketChannelHandler(eventHandler,
-                                               ChannelHandler.this,
-                                               socketChannel, index);
-        }
+        SocketChannelHandler handler = new SocketChannelHandler(
+                                                                eventHandler,
+                                                                ChannelHandler.this,
+                                                                socketChannel,
+                                                                index);
         options.configure(socketChannel.socket());
         addHandler(handler);
         socketChannel.configureBlocking(false);
@@ -277,13 +242,6 @@ public class ChannelHandler {
      */
     public boolean isRunning() {
         return run.get();
-    }
-
-    /**
-     * @return
-     */
-    public boolean isTls() {
-        return sslContext != null;
     }
 
     /**
@@ -419,15 +377,6 @@ public class ChannelHandler {
         } finally {
             myLock.unlock();
         }
-    }
-
-    SSLEngine createEngine(InetSocketAddress remoteAddress) {
-        SSLEngine engine = sslContext.createSSLEngine(remoteAddress.getHostName(),
-                                                      remoteAddress.getPort());
-        if (sslParameters != null) {
-            engine.setSSLParameters(sslParameters);
-        }
-        return engine;
     }
 
     void delink(SocketChannelHandler handler) {

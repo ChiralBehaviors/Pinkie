@@ -145,8 +145,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SSLContext sslContext,
                                       SSLParameters sslParameters)
                                                                   throws IOException {
-        super(handlerName, socketOptions, commsExec, selectorQueues,
-              sslContext, sslParameters);
+        super(handlerName, socketOptions, commsExec, selectorQueues);
         if (factory == null) {
             throw new IllegalArgumentException(
                                                "Event handler factory cannot be null");
@@ -391,19 +390,11 @@ public class ServerSocketChannelHandler extends ChannelHandler {
             accepted.close();
             return;
         }
-        SocketChannelHandler handler;
-        if (isTls()) {
-            handler = new TlsHandshakeHandler(
-                                              commHandler,
-                                              this,
-                                              accepted,
-                                              nextQueueIndex(),
-                                              createEngine((InetSocketAddress) accepted.getRemoteAddress()),
-                                              false);
-        } else {
-            handler = new SocketChannelHandler(commHandler, this, accepted,
-                                               nextQueueIndex());
-        }
+        SocketChannelHandler handler = new SocketChannelHandler(
+                                                                commHandler,
+                                                                this,
+                                                                accepted,
+                                                                nextQueueIndex());
         addHandler(handler);
         handler.handleAccept();
     }
