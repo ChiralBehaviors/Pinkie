@@ -109,9 +109,7 @@ public class ChannelHandler {
         }
         selectors = new Selector[selectorQueues];
         selectorThreads = new Thread[selectorQueues];
-        LinkedBlockingDeque<Runnable>[] regs = new LinkedBlockingDeque[selectorQueues];
-        regs = new LinkedBlockingDeque[selectorQueues];
-        registers = regs;
+        registers = new LinkedBlockingDeque[selectorQueues];
         this.executor = executor;
         options = socketOptions;
 
