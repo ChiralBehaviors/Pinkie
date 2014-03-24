@@ -83,7 +83,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       CommunicationsHandlerFactory factory)
                                                                            throws IOException {
         this(handlerName, channel, socketOptions, commsExec, factory, 1, null,
-             null);
+             null, DEFAULT_CHANNEL_FACTORY);
     }
 
     /**
@@ -111,7 +111,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       CommunicationsHandlerFactory factory,
                                       int selectorQueues) throws IOException {
         this(handlerName, channel, socketOptions, commsExec, factory,
-             selectorQueues, null, null);
+             selectorQueues, null, null, DEFAULT_CHANNEL_FACTORY);
     }
 
     /**
@@ -133,6 +133,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
      *            - the sslContext to use for SSL sessions
      * @param sslParameters
      *            - SSL parameters to use
+     * @param cFactory
+     * 			  - The Factory to use for new Selectors & Channels
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
@@ -143,9 +145,10 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       CommunicationsHandlerFactory factory,
                                       int selectorQueues,
                                       SSLContext sslContext,
-                                      SSLParameters sslParameters)
+                                      SSLParameters sslParameters,
+                                      ChannelFactory cFactory)
                                                                   throws IOException {
-        super(handlerName, socketOptions, commsExec, selectorQueues);
+        super(handlerName, socketOptions, commsExec, selectorQueues, cFactory);
         if (factory == null) {
             throw new IllegalArgumentException(
                                                "Event handler factory cannot be null");
@@ -158,7 +161,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                   String.format("Selector[%s (accept)]",
                                                 getName()));
         acceptThread.setDaemon(true);
-        acceptSelector = Selector.open();
+        acceptSelector = channelFactory.selectorOpen();
     }
 
     /**
@@ -190,7 +193,7 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SSLParameters sslParameters)
                                                                   throws IOException {
         this(handlerName, channel, socketOptions, commsExec, factory, 1,
-             sslContext, sslParameters);
+             sslContext, sslParameters, DEFAULT_CHANNEL_FACTORY);
     }
 
     /**
@@ -257,7 +260,8 @@ public class ServerSocketChannelHandler extends ChannelHandler {
                                       SSLParameters sslParameters)
                                                                   throws IOException {
         this(handlerName, bind(socketOptions, endpointAddress), socketOptions,
-             commsExec, factory, selectorQueues, sslContext, sslParameters);
+             commsExec, factory, selectorQueues, sslContext, sslParameters,
+             DEFAULT_CHANNEL_FACTORY);
     }
 
     /**

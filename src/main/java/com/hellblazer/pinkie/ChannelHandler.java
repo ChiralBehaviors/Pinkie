@@ -65,6 +65,7 @@ public class ChannelHandler {
     final SocketOptions                   options;
     final AtomicBoolean                   run           = new AtomicBoolean();
     final int                             selectTimeout = 1000;
+    final ChannelFactory				  channelFactory;
 
     /**
      * Construct a new channel handler with a single selector queue
@@ -97,11 +98,36 @@ public class ChannelHandler {
      * @throws IOException
      *             - if things go pear shaped when opening the selector
      */
-    @SuppressWarnings("unchecked")
     public ChannelHandler(String handlerName, SocketOptions socketOptions,
                           ExecutorService executor, int selectorQueues)
                                                                        throws IOException {
+    	this(handlerName, socketOptions, executor, selectorQueues, DEFAULT_CHANNEL_FACTORY);
+    }
+    
+    /**
+     * Construct a new channel handler
+     * 
+     * @param handlerName
+     *            - the String name used to mark the selection thread
+     * @param socketOptions
+     *            - the socket options to configure new sockets
+     * @param executor
+     *            - the executor service to handle I/O and selection events
+     * @param selectorQueues
+     *            - the number of selectors to use
+     * @param cFactory
+     * 			  - The Factory to use for new Selectors & Channels
+     * @throws IOException
+     *             - if things go pear shaped when opening the selector
+     */
+    @SuppressWarnings("unchecked")
+    public ChannelHandler(String handlerName, SocketOptions socketOptions,
+                          ExecutorService executor, int selectorQueues, 
+                          ChannelFactory cFactory)
+                                                   					throws IOException {
+        
         name = handlerName;
+        channelFactory = cFactory;
         if (selectorQueues <= 0) {
             throw new IllegalArgumentException(
                                                String.format("selectorQueues must be > 0: %s",
@@ -118,11 +144,11 @@ public class ChannelHandler {
                                             String.format("Selector[%s (%s)]",
                                                           name, i));
             selectorThreads[i].setDaemon(true);
-            selectors[i] = Selector.open();
+            selectors[i] = channelFactory.selectorOpen();
             registers[i] = new LinkedBlockingDeque<>();
         }
     }
-
+    
     /**
      * Construct a new channel handler with a single selector queue
      * 
@@ -179,7 +205,7 @@ public class ChannelHandler {
         assert remoteAddress != null : "Remote address cannot be null";
         assert eventHandler != null : "Handler cannot be null";
         int index = nextQueueIndex();
-        SocketChannel socketChannel = SocketChannel.open();
+        SocketChannel socketChannel = channelFactory.socketChannelOpen();
         SocketChannelHandler handler = new SocketChannelHandler(
                                                                 eventHandler,
                                                                 ChannelHandler.this,
@@ -508,4 +534,24 @@ public class ChannelHandler {
             }
         }
     }
+
+    public static interface ChannelFactory {
+    	
+    	Selector selectorOpen() throws IOException;
+    	
+    	SocketChannel socketChannelOpen() throws IOException;
+    }
+    
+    static final ChannelFactory DEFAULT_CHANNEL_FACTORY = new ChannelFactory() {
+
+    	@Override
+    	public Selector selectorOpen() throws IOException {
+    		return Selector.open();
+    	}
+    	
+    	@Override
+    	public SocketChannel socketChannelOpen() throws IOException {
+    		return SocketChannel.open();
+    	}
+    };
 }
