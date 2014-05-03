@@ -33,13 +33,22 @@ For releases:
         <url>http://repository-hal900000.forge.cloudbees.com/release/</url>
     </repository>
 
-The current version of Pinkie is 0.0.3-SNAPSHOT.  To use Pinkie in your project, add the following dependency in your project's pom.xml:
+The current released version of Pinkie is 0.0.3.  To use Pinkie in your project, add the following dependency in your project's pom.xml:
 
 
     <dependency>
         <groupId>com.hellblazer</groupId>
         <artifactId>pinkie</artifactId>
-        <version>0.0.3-SNAPSHOT</version>
+        <version>0.0.3</version>
+    </dependency>
+
+The current snapshot version of Pinkie is 0.0.4-SNAPSHOT.  To use Pinkie in your project, add the following dependency in your project's pom.xml:
+
+
+    <dependency>
+        <groupId>com.hellblazer</groupId>
+        <artifactId>pinkie</artifactId>
+        <version>0.0.4-SNAPSHOT</version>
     </dependency>
     
 
