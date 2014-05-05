@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.hellblazer</groupId>
 	<artifactId>pinkie</artifactId>
-	<version>0.0.3</version>
+	<version>0.0.4-SNAPSHOT</version>
 	<name>Pinkie</name>
 	<description>A minimal NIO Socket library</description>
 	<url>https://github.com/Hellblazer/Pinkie</url>
@@ -129,7 +129,7 @@
 		<dependency>
 			<groupId>com.hellblazer</groupId>
 			<artifactId>utils</artifactId>
-			<version>0.0.2</version>
+			<version>0.0.3-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 	<properties>
