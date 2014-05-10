@@ -101,6 +101,11 @@ public class TestBufferProtocol {
                 return client;
             }
 
+            @Override
+            public BufferProtocolHandler constructBufferProtocolHandler(InetSocketAddress remoteAddress) {
+                return client;
+            }
+
         };
 
         BufferProtocolHandler server = mock(BufferProtocolHandler.class);
@@ -164,6 +169,11 @@ public class TestBufferProtocol {
 
                                                            @Override
                                                            public BufferProtocolHandler constructBufferProtocolHandler() {
+                                                               return server;
+                                                           }
+
+                                                           @Override
+                                                           public BufferProtocolHandler constructBufferProtocolHandler(InetSocketAddress remoteAddress) {
                                                                return server;
                                                            }
                                                        });

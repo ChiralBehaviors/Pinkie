@@ -20,18 +20,17 @@ abstract public class BufferProtocolFactory implements
 
     public void connect(InetSocketAddress remoteAddress, ChannelHandler server)
                                                                                throws IOException {
-        CommunicationsHandler handler = constructHandler();
+        CommunicationsHandler handler = new BufferProtocol(
+                                                           constructBufferProtocolHandler(remoteAddress)).getHandler();
         server.connectTo(remoteAddress, handler);
     }
+
+    abstract public BufferProtocolHandler constructBufferProtocolHandler(InetSocketAddress remoteAddress);
 
     abstract public BufferProtocolHandler constructBufferProtocolHandler();
 
     @Override
     public CommunicationsHandler createCommunicationsHandler(SocketChannel channel) {
-        return constructHandler();
-    }
-
-    private CommunicationsHandler constructHandler() {
         return new BufferProtocol(constructBufferProtocolHandler()).getHandler();
     }
 }
