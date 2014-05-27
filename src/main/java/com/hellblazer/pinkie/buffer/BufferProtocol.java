@@ -53,6 +53,7 @@ final public class BufferProtocol {
             protocol.accepted(BufferProtocol.this);
         }
 
+        @SuppressWarnings("unused")
         public void close() {
         	close(null);
         }
