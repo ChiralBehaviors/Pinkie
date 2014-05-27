@@ -65,10 +65,15 @@ public class SocketChannelHandler {
         writeHandler = getWriteHandler();
     }
 
-    /**
-     * Close the handler
-     */
+    /** Close the handler */
     public void close() {
+    	close(null);
+    }
+    
+    /**
+     * Close the handler, passing a reason to the protocol handler
+     */
+    public void close(final IOException reason) {
         if (open.compareAndSet(true, false)) {
             if (log.isTraceEnabled()) {
                 Exception e = new Exception("Socket close trace");
@@ -86,7 +91,7 @@ public class SocketChannelHandler {
             handler.execute(new Runnable() {
                 @Override
                 public void run() {
-                    eventHandler.closing();
+                    eventHandler.closing(reason);
                 }
             });
         }
