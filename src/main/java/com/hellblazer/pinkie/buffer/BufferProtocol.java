@@ -54,15 +54,19 @@ final public class BufferProtocol {
         }
 
         public void close() {
-            handler.close();
+        	close(null);
+        }
+        
+        public void close(IOException reason) {
+            handler.close(reason);
         }
 
         @Override
-        public void closing() {
+        public void closing(IOException reason) {
             if (log.isDebugEnabled()) {
-                log.debug("socket {} closing", socketInfo());
+                log.debug("socket " +socketInfo() + " closing", reason);
             }
-            protocol.closing();
+            protocol.closing(reason);
         }
 
         @Override
@@ -105,7 +109,7 @@ final public class BufferProtocol {
                     }
                     protocol.readError();
                 }
-                handler.close();
+                handler.close(e);
                 return;
             }
             if (readBuffer.hasRemaining()) {
@@ -179,7 +183,7 @@ final public class BufferProtocol {
                     }
                     protocol.writeError();
                 }
-                handler.close();
+                handler.close(e);
                 return;
             }
             if (writeBuffer.hasRemaining()) {
@@ -235,7 +239,11 @@ final public class BufferProtocol {
     }
 
     public void close() {
-        handler.close();
+    	close(null);
+    }
+    
+    public void close(IOException reason) {
+        handler.close(reason);
     }
 
     /**

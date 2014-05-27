@@ -15,6 +15,8 @@
  */
 package com.hellblazer.pinkie;
 
+import java.io.IOException;
+
 /**
  * The interface that a communications handler implements to handle the
  * read/write/accept/connect events on a socket channel.
@@ -59,9 +61,10 @@ public interface CommunicationsHandler {
     void accept(SocketChannelHandler handler);
 
     /**
-     * The channel is closing, perform any clean up necessary
+     * The channel is closing, perform any clean up necessary.
+     * @param reason, if not null, the reason why the channel is closing
      */
-    void closing();
+    void closing(IOException reason);
 
     /**
      * Handle the connection of the outbound socket

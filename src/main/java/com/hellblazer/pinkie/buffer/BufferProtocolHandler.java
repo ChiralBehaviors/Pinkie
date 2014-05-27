@@ -15,6 +15,7 @@
  */
 package com.hellblazer.pinkie.buffer;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
@@ -34,8 +35,10 @@ public interface BufferProtocolHandler {
 
     /**
      * The buffer protocol is closing the socket
+     * 
+     * @param reason, a possibly null reason why the channel is closing
      */
-    void closing();
+    void closing(IOException reason);
 
     /**
      * The buffer protocol has connected the outbound socket

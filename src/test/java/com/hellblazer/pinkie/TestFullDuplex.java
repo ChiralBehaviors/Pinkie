@@ -62,7 +62,7 @@ public class TestFullDuplex {
         }
 
         @Override
-        public void closing() {
+        public void closing(IOException reason) {
         }
 
         @Override
