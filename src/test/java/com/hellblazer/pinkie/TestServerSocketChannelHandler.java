@@ -19,7 +19,9 @@ import static com.hellblazer.utils.Utils.waitForCondition;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -61,7 +63,7 @@ public class TestServerSocketChannelHandler extends TestCase {
         }
 
         @Override
-        public void closing() {
+        public void closing(IOException reason) {
         }
 
         @Override
@@ -193,6 +195,36 @@ public class TestServerSocketChannelHandler extends TestCase {
         handler.terminate();
     }
 
+    @Test
+    public void testConnectFailed() throws Exception {
+        SocketOptions socketOptions = new SocketOptions();
+        final SimpleCommHandlerFactory outboundFactory = new SimpleCommHandlerFactory();
+        final ServerSocketChannelHandler outboundHandler = new ServerSocketChannelHandler(
+                                                                                          "Test write Handler",
+                                                                                          socketOptions,
+                                                                                          new InetSocketAddress(
+                                                                                                                "127.0.0.1",
+                                                                                                                0),
+                                                                                          Executors.newCachedThreadPool(),
+                                                                                          outboundFactory);
+        outboundHandler.start();
+        // Find a port we know isn't being listened on
+        ServerSocket s = new ServerSocket(0);
+        int port = s.getLocalPort();
+        s.close();
+        final SimpleCommHandler connectHandler = new SimpleCommHandler();
+        outboundHandler.connectTo(new InetSocketAddress("127.0.0.1", port), connectHandler);
+        assertTrue(waitForCondition(1000, 100, new Condition() {
+        	@Override
+        	public boolean isTrue() {
+        		return connectHandler.closed.get();
+        	}
+        }));
+        outboundHandler.terminate();
+        assertNotNull(connectHandler.closeReason.get());
+        assertTrue(connectHandler.closeReason.get() instanceof ConnectException);
+    }
+    
     public void testEndToEnd() throws Exception {
         SocketOptions socketOptions = new SocketOptions();
         int bufferSize = 1 * 1024;

@@ -26,7 +26,9 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.concurrent.Executors;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.After;
@@ -142,17 +144,18 @@ public class TestBufferProtocol {
         validate(serverMessage, clientBufferProtocol.getValue().getReadBuffer());
         validate(clientMessage, serverBufferProtocol.getValue().getReadBuffer());
 
-        clientBufferProtocol.getValue().close();
-        serverBufferProtocol.getValue().close();
+        IOException clientReason = new IOException(), serverReason = new IOException();
+        clientBufferProtocol.getValue().close(clientReason);
+        serverBufferProtocol.getValue().close(serverReason);
 
-        verify(client).closing();
-        verify(server).closing();
+        verify(client).closing(clientReason);
+        verify(server).closing(serverReason);
     }
 
     private void constructClientHandler(SocketOptions socketOptions)
                                                                     throws IOException {
         clientHandler = new ChannelHandler("Client", socketOptions,
-                                           Executors.newCachedThreadPool());
+                                           new SameThreadExecutorService());
     }
 
     private void constructServerHandler(SocketOptions socketOptions,
@@ -164,7 +167,7 @@ public class TestBufferProtocol {
                                                        new InetSocketAddress(
                                                                              "127.0.0.1",
                                                                              0),
-                                                       Executors.newCachedThreadPool(),
+                                                       new SameThreadExecutorService(),
                                                        new BufferProtocolFactory() {
 
                                                            @Override
@@ -254,4 +257,38 @@ public class TestBufferProtocol {
             }
         });
     }
+    
+    // Run handlers on the calling thread, this simplifies concurrency/synchronization in the test code.
+    private static class SameThreadExecutorService extends AbstractExecutorService {
+
+    	@Override
+    	public void shutdown() {
+    	}
+
+    	@Override
+    	public List<Runnable> shutdownNow() {
+    		return null;
+    	}
+
+    	@Override
+    	public boolean isShutdown() {
+    		return false;
+    	}
+
+    	@Override
+    	public boolean isTerminated() {
+    		return false;
+    	}
+
+    	@Override
+    	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+    		return true;
+    	}
+
+    	@Override
+    	public void execute(Runnable command) {
+    		command.run();
+    	}
+    }
+
 }

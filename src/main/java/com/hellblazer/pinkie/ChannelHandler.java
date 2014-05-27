@@ -297,7 +297,7 @@ public class ChannelHandler {
         } catch (IOException e) {
             log.info(String.format("Unable to finish connection %s [%s] error: %s",
                                    handler.getChannel(), name, e));
-            handler.close();
+            handler.close(e);
             return;
         }
         if (log.isTraceEnabled()) {
@@ -453,7 +453,7 @@ public class ChannelHandler {
                 log.trace(String.format("%s has been closed [%s]", channel,
                                         name), e);
             }
-            handler.close();
+            handler.close(e);
         }
         return key;
     }

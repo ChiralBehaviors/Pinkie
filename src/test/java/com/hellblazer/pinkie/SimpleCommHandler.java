@@ -36,6 +36,7 @@ public class SimpleCommHandler implements CommunicationsHandler {
     final AtomicBoolean                         closed    = new AtomicBoolean();
     final AtomicBoolean                         connected = new AtomicBoolean();
     final AtomicReference<SocketChannelHandler> handler   = new AtomicReference<>();
+    final AtomicReference<IOException>		    closeReason = new AtomicReference<>();
     final List<byte[]>                          reads     = new CopyOnWriteArrayList<>();
     final List<ByteBuffer>                      writes    = new CopyOnWriteArrayList<>();
 
@@ -46,8 +47,9 @@ public class SimpleCommHandler implements CommunicationsHandler {
     }
 
     @Override
-    public void closing() {
+    public void closing(IOException reason) {
         closed.set(true);
+        closeReason.set(reason);
     }
 
     @Override
